@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Оперативная карта — рабочий демо-пример</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<style>
+/* ==========================================================================
+   Та же тёмная "оперативная" тема, что и в основном проекте (style.css),
+   просто встроена сюда, чтобы демо было одним файлом без внешних зависимостей
+   (кроме CDN-библиотек Leaflet/Turf и шрифтов).
+   ========================================================================== */
+:root {
+  --bg-deep:#0a0d13; --bg-panel:#12161f; --bg-panel-alt:#171c27;
+  --border:#232938; --border-soft:#1a2030;
+  --text-primary:#e7ebf2; --text-muted:#6b7488; --text-dim:#454d5f;
+  --accent-amber:#e0a640; --accent-amber-dim:#7a6533;
+  --line-current:#e0a640; --gain:#4f9d69; --loss:#c4453b;
+  --radius:3px; --font-head:'Barlow Condensed',sans-serif; --font-mono:'IBM Plex Mono',monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin:0; padding:0; height:100%; background:var(--bg-deep); color:var(--text-primary); font-family:var(--font-mono); }
+.mono { font-family: var(--font-mono); }
+.app { display:flex; flex-direction:column; height:100vh; }
+
+.demo-banner {
+  background: linear-gradient(90deg, #3a2e12, #12161f);
+  border-bottom: 1px solid var(--accent-amber-dim);
+  color: var(--accent-amber);
+  font-size: 12px;
+  padding: 6px 20px;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+
+.topbar { display:flex; align-items:center; justify-content:space-between; padding:0 20px; height:56px; background:var(--bg-panel); border-bottom:1px solid var(--border); flex-shrink:0; }
+.topbar__brand { display:flex; align-items:center; gap:10px; }
+.topbar__dot { width:9px; height:9px; border-radius:50%; background:var(--accent-amber); box-shadow:0 0 8px var(--accent-amber); animation:pulse 2.4s ease-in-out infinite; }
+@keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:.35;} }
+.topbar h1 { font-family:var(--font-head); font-weight:600; font-size:20px; letter-spacing:.08em; margin:0; }
+.topbar__accent { color:var(--accent-amber); }
+.topbar__meta { color:var(--text-muted); font-size:13px; letter-spacing:.03em; }
+
+.layout { flex:1; display:flex; min-height:0; }
+.panel { width:280px; flex-shrink:0; background:var(--bg-panel); border-right:1px solid var(--border); display:flex; flex-direction:column; padding:20px 18px; gap:24px; overflow-y:auto; }
+.panel__block { display:flex; flex-direction:column; gap:10px; }
+.panel__block--grow { flex:1; min-height:0; }
+.panel__label { font-family:var(--font-head); font-size:13px; font-weight:600; letter-spacing:.12em; text-transform:uppercase; color:var(--text-muted); }
+.date-input { background:var(--bg-panel-alt); border:1px solid var(--border); color:var(--text-primary); font-family:var(--font-mono); font-size:14px; padding:9px 10px; border-radius:var(--radius); color-scheme:dark; width:100%; }
+.date-input:focus-visible { outline:2px solid var(--accent-amber); outline-offset:1px; }
+.panel__nav { display:flex; gap:8px; }
+.btn { flex:1; font-family:var(--font-mono); font-size:12px; padding:8px 10px; border-radius:var(--radius); border:1px solid var(--border); background:var(--bg-panel-alt); color:var(--text-primary); cursor:pointer; transition:border-color .15s ease,color .15s ease; }
+.btn:hover { border-color:var(--accent-amber-dim); color:var(--accent-amber); }
+.btn:disabled { opacity:.35; cursor:not-allowed; }
+.legend { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px; font-size:13px; color:var(--text-muted); }
+.legend li { display:flex; align-items:center; gap:8px; }
+.legend__swatch { width:14px; height:14px; border-radius:2px; flex-shrink:0; }
+.legend__swatch--current { background:var(--line-current); }
+.legend__swatch--gain { background:var(--gain); }
+.legend__swatch--loss { background:var(--loss); }
+.status-log { background:var(--bg-panel-alt); border:1px solid var(--border-soft); border-radius:var(--radius); padding:10px 12px; font-size:12px; line-height:1.6; overflow-y:auto; flex:1; min-height:120px; }
+.status-log__line { margin:0 0 4px; }
+.status-log__line--muted { color:var(--text-dim); }
+.status-log__line--ok { color:var(--gain); }
+.status-log__line--warn { color:var(--accent-amber); }
+.status-log__line--error { color:var(--loss); }
+.available-dates { font-size:11px; color:var(--text-dim); line-height:1.6; }
+.available-dates b { color:var(--text-muted); }
+
+.map-wrap { position:relative; flex:1; min-width:0; }
+#map { width:100%; height:100%; background:#0d1119; }
+
+.stats { display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:var(--border); border-top:1px solid var(--border); flex-shrink:0; }
+.stats__item { background:var(--bg-panel); padding:12px 20px; display:flex; flex-direction:column; gap:4px; }
+.stats__label { font-family:var(--font-head); font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--text-muted); }
+.stats__value { font-size:18px; font-weight:500; color:var(--text-primary); }
+.stats__value--gain { color:var(--gain); }
+.stats__value--loss { color:var(--loss); }
+
+  #stats-panel { background: var(--bg-panel-alt); border: 1px solid var(--border-soft); border-radius: var(--radius); padding: 12px; color: var(--text-primary); font-size: 13px; line-height: 1.5; }
+  #stats-panel strong { color: var(--text-muted); }
+  #stats-diff { margin-top: 8px; color: var(--text-primary); }
+.leaflet-control, .leaflet-bar, .leaflet-control-layers, .leaflet-control-zoom, .leaflet-control-attribution {
+  background: rgba(18, 22, 31, 0.95);
+  color: var(--text-primary);
+  border: 1px solid rgba(35, 41, 56, 0.85);
+}
+.leaflet-bar a, .leaflet-control-layers-toggle, .leaflet-control-layers-list, .leaflet-control-layers-expanded {
+  background: #12161f;
+  color: var(--text-primary);
+}
+.leaflet-bar a:hover, .leaflet-control-layers-toggle:hover {
+  background: #1a2030;
+  color: var(--accent-amber);
+}
+
+@media (max-width: 820px) {
+  .layout { flex-direction:column; }
+  .panel { width:100%; flex-direction:row; flex-wrap:wrap; border-right:none; border-bottom:1px solid var(--border); max-height:260px; }
+  .panel__block--grow { min-height:80px; }
+  .stats { grid-template-columns:repeat(2,1fr); }
+}
+</style>
+</head>
+<body>
+
+  <div class="app">
+
+    <div class="demo-banner">
+      ⚑ КАРТА ФИКСИРОВАНА НА 12.07.2026. Линия фронта загружается из нового GeoJSON-файла и отображается с цветом.
+    </div>
+
+    <header class="topbar">
+      <div class="topbar__brand">
+        <span class="topbar__dot"></span>
+        <h1>ОПЕРАТИВНАЯ КАРТА<span class="topbar__accent">.</span></h1>
+      </div>
+      <div class="topbar__meta"><span id="clock" class="mono"></span></div>
+    </header>
+
+    <div class="layout">
+
+      <aside class="panel">
+
+        <section class="panel__block">
+          <label class="panel__label" for="date-select">Дата карты</label>
+          <select id="date-select" class="date-input"></select>
+        </section>
+
+        <section class="panel__block">
+          <span class="panel__label">Статистика</span>
+          <div id="stats-panel">
+            <div><strong>Базовая дата:</strong> 12.07.2026</div>
+            <div id="stats-diff" class="mono">Выберите дату для сравнения</div>
+          </div>
+        </section>
+
+        <section class="panel__block">
+          <span class="panel__label">Легенда</span>
+          <ul class="legend">
+            <li><span class="legend__swatch legend__swatch--current"></span>Базовая линия фронта (12.07.2026)</li>
+            <li><span class="legend__swatch legend__swatch--gain"></span>Продвижение (+)</li>
+            <li><span class="legend__swatch legend__swatch--loss"></span>Отход (−)</li>
+          </ul>
+        </section>
+
+        <section class="panel__block panel__block--grow">
+          <span class="panel__label">Статус загрузки</span>
+          <div id="status-log" class="status-log mono">
+            <p class="status-log__line status-log__line--muted">Инициализация…</p>
+          </div>
+        </section>
+
+      </aside>
+
+      <main class="map-wrap">
+        <div id="map"></div>
+      </main>
+
+    </div>
+
+    <footer class="stats">
+      <div class="stats__item"><span class="stats__label">Дата сравнения</span><span id="stat-range" class="stats__value mono">—</span></div>
+      <div class="stats__item"><span class="stats__label">Площадь продвижения</span><span id="stat-gain" class="stats__value mono stats__value--gain">0.00 км²</span></div>
+      <div class="stats__item"><span class="stats__label">Площадь отхода</span><span id="stat-loss" class="stats__value mono stats__value--loss">0.00 км²</span></div>
+      <div class="stats__item"><span class="stats__label">Итоговое изменение</span><span id="stat-net" class="stats__value mono">0.00 км²</span></div>
+    </footer>
+
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6.5.0/turf.min.js"></script>
+
+  <script>
+  /* ==========================================================================
+     ВСТРОЕННЫЕ ДАННЫЕ (в боевой версии это отдельные файлы data/YYYY-MM-DD.json,
+     загружаемые через fetch — см. index.html/script.js). Здесь — то же самое,
+     но прямо в JS-объекте, чтобы пример открывался без локального сервера.
+     4 дня подряд: фронт последовательно продвигается на восток
+     и слегка отступает на юге сектора B — чтобы увидеть на карте
+     ОБА случая (и продвижение, и отход) сразу в первом же сравнении.
+     ========================================================================== */
+  const CONFIG = { initialCenter:[48.0,37.5], initialZoom:8, minZoom:4, maxZoom:14 };
+  const BASEMAPS = [
+    {
+      name: "OSM",
+      type: "tile",
+      url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+      options: {
+        subdomains: "abc",
+        maxZoom: 19,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>'
+      },
+      default: true
+    },
+    {
+      name: "Google Satellite",
+      type: "tile",
+      url: "https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
+      options: {
+        subdomains: ["mt0","mt1","mt2","mt3"],
+        maxZoom: 20,
+        attribution: "&copy; Google"
+      }
+    },
+    {
+      name: "ESRI Satellite",
+      type: "tile",
+      url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+      options: {
+        maxZoom: 19,
+        attribution: "&copy; ESRI"
+      }
+    },
+    {
+      name: "ESRI Topo",
+      type: "tile",
+      url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",
+      options: {
+        maxZoom: 19,
+        attribution: "&copy; ESRI"
+      }
+    },
+    {
+      name: "Yandex Satellite",
+      type: "tile",
+      url: "https://core-sat.maps.yandex.net/tiles?l=sat&x={x}&y={y}&z={z}&scale=1&lang=ru_RU",
+      options: {
+        maxZoom: 19,
+        attribution: "&copy; Yandex",
+        noWrap: true,
+        tileSize: 256,
+        maxNativeZoom: 19
+      }
+    },
+    {
+      name: "Yandex Hybrid",
+      type: "tile",
+      url: "https://core-sat.maps.yandex.net/tiles?l=sat,skl&x={x}&y={y}&z={z}&scale=1&lang=ru_RU",
+      options: {
+        maxZoom: 19,
+        attribution: "&copy; Yandex",
+        noWrap: true,
+        tileSize: 256,
+        maxNativeZoom: 19
+      }
+    }
+  ];
+
+  const state = { map:null, baseLayer:null, currentLayer:null, gainLayer:null, lossLayer:null };
+
+  function buildLayer(def) {
+    if (def.type === "tile") {
+      return L.tileLayer(def.url, def.options);
+    }
+    if (def.type === "group") {
+      const layers = def.layers.map((item) => L.tileLayer(item.url, item.options));
+      return L.layerGroup(layers);
+    }
+    throw new Error(`Unsupported layer type: ${def.type}`);
+  }
+
+  function initMap() {
+    const map = L.map("map", { zoomControl:false, center:CONFIG.initialCenter, zoom:CONFIG.initialZoom, minZoom:CONFIG.minZoom, maxZoom:CONFIG.maxZoom });
+    const baseLayers = {};
+    let defaultLayer = null;
+    BASEMAPS.forEach((def) => {
+      const layer = buildLayer(def);
+      baseLayers[def.name] = layer;
+      if (def.default || !defaultLayer) {
+        defaultLayer = layer;
+      }
+    });
+    defaultLayer.addTo(map);
+    const layersControl = L.control.layers(baseLayers, {}, { position:"topright", collapsed:false }).addTo(map);
+    L.control.zoom({ position:"bottomright" }).addTo(map);
+    L.control.scale({ position:"bottomleft", imperial:false }).addTo(map);
+    state.map = map;
+    state.layersControl = layersControl;
+  }
+
+  const BASELINE_FILE = "front-line.geojson";
+  const DATE_OPTIONS = [
+    { label: "12.07.2026 (базовая)", file: "front-line.geojson" },
+    { label: "13.07.2026", file: "Untitled 13.07.2026.geojson" }
+  ];
+
+  function combineToSingleGeometry(fc) {
+    const feats = (fc.features||[]).filter(f => f.geometry && (f.geometry.type==="Polygon"||f.geometry.type==="MultiPolygon"));
+    if (feats.length===0) return null;
+    if (feats.length===1) return feats[0];
+    try {
+      return feats.reduce((acc,f) => turf.union(acc,f) || acc);
+    } catch(err) {
+      log(`Ошибка union: ${err.message}`, "warn");
+      return feats.reduce((big,f) => turf.area(f) > turf.area(big) ? f : big);
+    }
+  }
+
+  function calculateMetrics(poly12, poly13) {
+    if (!poly12 || !poly13) return { gainFeature:null, lossFeature:null, gainKm2:0, lossKm2:0, netKm2:0, diffKm2:0, status:"нет данных" };
+    const gainFeature = turf.difference(poly13, poly12);
+    const lossFeature = turf.difference(poly12, poly13);
+    const gainKm2 = gainFeature ? turf.area(gainFeature) / 1_000_000 : 0;
+    const lossKm2 = lossFeature ? turf.area(lossFeature) / 1_000_000 : 0;
+    const netKm2 = gainKm2 - lossKm2;
+    return {
+      gainFeature,
+      lossFeature,
+      gainKm2,
+      lossKm2,
+      netKm2,
+      diffKm2: Math.abs(netKm2),
+      status: netKm2 >= 0 ? "Продвижение" : "Отход"
+    };
+  }
+
+  function clearGeoJsonLayers() {
+    state.map.eachLayer((layer) => {
+      if (layer instanceof L.GeoJSON) {
+        state.map.removeLayer(layer);
+      }
+    });
+  }
+
+  async function updateMap(fileName) {
+    clearGeoJsonLayers();
+    state.baseLayer = null;
+    state.currentLayer = null;
+    state.gainLayer = null;
+    state.lossLayer = null;
+
+    try {
+      log(`Загружаем ${fileName}…`, "muted");
+      const [baseGeojson, currentGeojson] = await Promise.all([
+        loadGeoJson(BASELINE_FILE),
+        loadGeoJson(fileName)
+      ]);
+
+      const basePolygon = combineToSingleGeometry(baseGeojson);
+      const currentPolygon = combineToSingleGeometry(currentGeojson);
+      const metrics = calculateMetrics(basePolygon, currentPolygon);
+
+      state.baseLayer = L.geoJSON(baseGeojson, {
+        style: { color: "#e0a640", weight: 2, fillColor: "transparent", fillOpacity: 0, opacity: 0.9, dashArray: "6,6" },
+        onEachFeature: (feature, layer) => {
+          const label = feature.properties?.name || "Базовая карта 12.07.2026";
+          layer.bindPopup(label);
+        }
+      }).addTo(state.map);
+
+      const isBaselineView = fileName === BASELINE_FILE;
+      if (!isBaselineView) {
+        state.currentLayer = L.geoJSON(currentGeojson, {
+          style: { color: "#ff3b3b", weight: 2, fillColor: "#ff3b3b", fillOpacity: 0.12, opacity: 0.95 },
+          onEachFeature: (feature, layer) => {
+            const label = feature.properties?.name || feature.properties?.description || fileName;
+            layer.bindPopup(label);
+          }
+        }).addTo(state.map);
+      }
+
+      if (!isBaselineView) {
+        if (metrics.gainFeature) {
+          state.gainLayer = L.geoJSON(metrics.gainFeature, {
+            style: { color: "#4f9d69", weight: 1, fillColor: "#4f9d69", fillOpacity: 0.35, opacity: 0.8 }
+          }).addTo(state.map);
+        }
+        if (metrics.lossFeature) {
+          state.lossLayer = L.geoJSON(metrics.lossFeature, {
+            style: { color: "#c4453b", weight: 1, fillColor: "#c4453b", fillOpacity: 0.35, opacity: 0.8 }
+          }).addTo(state.map);
+        }
+      }
+
+      fitMapToLayer(state.currentLayer || state.baseLayer);
+      renderStatusMetrics(metrics, fileName, isBaselineView);
+      log(`Файл ${fileName} загружен и отображён`, "ok");
+    } catch (err) {
+      log(`Ошибка загрузки ${fileName}: ${err.message}`, "error");
+      document.getElementById("stats-diff").textContent = "Не удалось загрузить данные.";
+    }
+  }
+
+  function renderStatusMetrics(metrics, fileName, isBaselineView = false) {
+    const diffText = isBaselineView
+      ? "Выбрана базовая карта 12.07.2026. Сравнение данных не выполняется."
+      : metrics.status === "нет данных"
+        ? "Нет данных для сравнения с базовой картой 12.07.2026."
+        : `${metrics.status}: ${metrics.diffKm2.toFixed(2)} км² (продвижение ${metrics.gainKm2.toFixed(2)} км², отход ${metrics.lossKm2.toFixed(2)} км²)`;
+
+    document.getElementById("stats-diff").textContent = diffText;
+    updateStatsPanel({
+      prevDateStr: "12.07.2026",
+      currDateStr: fileName.replace(/\.geojson$/i, ""),
+      gainKm2: metrics.gainKm2,
+      lossKm2: metrics.lossKm2,
+      isBaselineView
+    });
+  }
+
+  const areaKm2 = (f) => f ? turf.area(f)/1_000_000 : 0;
+
+
+  function fitMapToLayer(layer) { if (layer && layer.getBounds().isValid()) state.map.fitBounds(layer.getBounds(), { padding:[30,30] }); }
+
+  function escapeHtml(str) { return String(str).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+
+  function updateStatsPanel({ prevDateStr, currDateStr, gainKm2, lossKm2, isBaselineView = false }) {
+    document.getElementById("stat-range").textContent = isBaselineView
+      ? "12.07.2026 (база)"
+      : prevDateStr ? `${prevDateStr} → ${currDateStr}` : "нет данных за пред. день";
+    document.getElementById("stat-gain").textContent = `${gainKm2.toFixed(2)} км²`;
+    document.getElementById("stat-loss").textContent = `${lossKm2.toFixed(2)} км²`;
+    const net = gainKm2 - lossKm2;
+    const netEl = document.getElementById("stat-net");
+    netEl.textContent = `${net>=0?"+":""}${net.toFixed(2)} км²`;
+    netEl.style.color = net>0 ? "var(--gain)" : net<0 ? "var(--loss)" : "var(--text-primary)";
+  }
+
+  const statusLogEl = document.getElementById("status-log");
+  function log(message, type="muted") {
+    const line = document.createElement("p");
+    line.className = `status-log__line status-log__line--${type}`;
+    const time = new Date().toLocaleTimeString("ru-RU", { hour12:false });
+    line.textContent = `[${time}] ${message}`;
+    statusLogEl.prepend(line);
+    while (statusLogEl.children.length > 30) statusLogEl.removeChild(statusLogEl.lastChild);
+  }
+
+  function initUI() {
+    const dateSelect = document.getElementById("date-select");
+    DATE_OPTIONS.forEach((option) => {
+      const node = document.createElement("option");
+      node.value = option.file;
+      node.textContent = option.label;
+      dateSelect.appendChild(node);
+    });
+
+    dateSelect.addEventListener("change", (e) => {
+      const fileName = e.target.value;
+      if (!fileName) return;
+      updateMap(fileName);
+    });
+
+    const initialFile = DATE_OPTIONS[0]?.file;
+    if (initialFile) {
+      dateSelect.value = initialFile;
+      updateMap(initialFile);
+    }
+
+    log("Селектор дат и панель статистики инициализированы", "ok");
+  }
+
+  async function loadGeoJson(url) {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`Не удалось загрузить ${url}: HTTP ${response.status}`);
+    return response.json();
+  }
+
+
+  function initClock() {
+    const clockEl = document.getElementById("clock");
+    const tick = () => { clockEl.textContent = new Date().toLocaleString("ru-RU", { hour12:false, day:"2-digit", month:"2-digit", year:"numeric", hour:"2-digit", minute:"2-digit", second:"2-digit" }); };
+    tick(); setInterval(tick, 1000);
+  }
+
+  document.addEventListener("DOMContentLoaded", async () => { initMap(); initUI(); initClock(); });
+  </script>
+
+</body>
+</html>
