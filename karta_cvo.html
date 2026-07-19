@@ -1,476 +1,4194 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ru">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Оперативная карта — рабочий демо-пример</title>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Карта CVO - админная панель</title>
 
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet.awesome-markers@2.0.5/dist/leaflet.awesome-markers.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
 
-<style>
-/* ==========================================================================
-   Та же тёмная "оперативная" тема, что и в основном проекте (style.css),
-   просто встроена сюда, чтобы демо было одним файлом без внешних зависимостей
-   (кроме CDN-библиотек Leaflet/Turf и шрифтов).
-   ========================================================================== */
-:root {
-  --bg-deep:#0a0d13; --bg-panel:#12161f; --bg-panel-alt:#171c27;
-  --border:#232938; --border-soft:#1a2030;
-  --text-primary:#e7ebf2; --text-muted:#6b7488; --text-dim:#454d5f;
-  --accent-amber:#e0a640; --accent-amber-dim:#7a6533;
-  --line-current:#e0a640; --gain:#4f9d69; --loss:#c4453b;
-  --radius:3px; --font-head:'Barlow Condensed',sans-serif; --font-mono:'IBM Plex Mono',monospace;
-}
-* { box-sizing: border-box; }
-html, body { margin:0; padding:0; height:100%; background:var(--bg-deep); color:var(--text-primary); font-family:var(--font-mono); }
-.mono { font-family: var(--font-mono); }
-.app { display:flex; flex-direction:column; height:100vh; }
+    <style>
+      :root {
+        --bg: #060a10;
+        --text: #e6edf7;
+        --muted: #9aa7bb;
+        --accent: #2dd4bf;
+        --danger: #ef4444;
+        --info: #60a5fa;
+        --radius: 14px;
+      }
 
-.demo-banner {
-  background: linear-gradient(90deg, #3a2e12, #12161f);
-  border-bottom: 1px solid var(--accent-amber-dim);
-  color: var(--accent-amber);
-  font-size: 12px;
-  padding: 6px 20px;
-  letter-spacing: 0.04em;
-  flex-shrink: 0;
-}
+      * {
+        box-sizing: border-box;
+      }
 
-.topbar { display:flex; align-items:center; justify-content:space-between; padding:0 20px; height:56px; background:var(--bg-panel); border-bottom:1px solid var(--border); flex-shrink:0; }
-.topbar__brand { display:flex; align-items:center; gap:10px; }
-.topbar__dot { width:9px; height:9px; border-radius:50%; background:var(--accent-amber); box-shadow:0 0 8px var(--accent-amber); animation:pulse 2.4s ease-in-out infinite; }
-@keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:.35;} }
-.topbar h1 { font-family:var(--font-head); font-weight:600; font-size:20px; letter-spacing:.08em; margin:0; }
-.topbar__accent { color:var(--accent-amber); }
-.topbar__meta { color:var(--text-muted); font-size:13px; letter-spacing:.03em; }
+      html,
+      body {
+        margin: 0;
+        width: 100%;
+        height: 100%;
+        color: var(--text);
+        background: radial-gradient(circle at 20% 20%, #0f1b2b, #060a10 40%, #030407 100%);
+        font-family: "IBM Plex Sans", "Segoe UI", Tahoma, sans-serif;
+      }
 
-.layout { flex:1; display:flex; min-height:0; }
-.panel { width:280px; flex-shrink:0; background:var(--bg-panel); border-right:1px solid var(--border); display:flex; flex-direction:column; padding:20px 18px; gap:24px; overflow-y:auto; }
-.panel__block { display:flex; flex-direction:column; gap:10px; }
-.panel__block--grow { flex:1; min-height:0; }
-.panel__label { font-family:var(--font-head); font-size:13px; font-weight:600; letter-spacing:.12em; text-transform:uppercase; color:var(--text-muted); }
-.date-input { background:var(--bg-panel-alt); border:1px solid var(--border); color:var(--text-primary); font-family:var(--font-mono); font-size:14px; padding:9px 10px; border-radius:var(--radius); color-scheme:dark; width:100%; }
-.date-input:focus-visible { outline:2px solid var(--accent-amber); outline-offset:1px; }
-.panel__nav { display:flex; gap:8px; }
-.btn { flex:1; font-family:var(--font-mono); font-size:12px; padding:8px 10px; border-radius:var(--radius); border:1px solid var(--border); background:var(--bg-panel-alt); color:var(--text-primary); cursor:pointer; transition:border-color .15s ease,color .15s ease; }
-.btn:hover { border-color:var(--accent-amber-dim); color:var(--accent-amber); }
-.btn:disabled { opacity:.35; cursor:not-allowed; }
-.legend { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px; font-size:13px; color:var(--text-muted); }
-.legend li { display:flex; align-items:center; gap:8px; }
-.legend__swatch { width:14px; height:14px; border-radius:2px; flex-shrink:0; }
-.legend__swatch--current { background:var(--line-current); }
-.legend__swatch--gain { background:var(--gain); }
-.legend__swatch--loss { background:var(--loss); }
-.status-log { background:var(--bg-panel-alt); border:1px solid var(--border-soft); border-radius:var(--radius); padding:10px 12px; font-size:12px; line-height:1.6; overflow-y:auto; flex:1; min-height:120px; }
-.status-log__line { margin:0 0 4px; }
-.status-log__line--muted { color:var(--text-dim); }
-.status-log__line--ok { color:var(--gain); }
-.status-log__line--warn { color:var(--accent-amber); }
-.status-log__line--error { color:var(--loss); }
-.available-dates { font-size:11px; color:var(--text-dim); line-height:1.6; }
-.available-dates b { color:var(--text-muted); }
+      .glass-panel,
+      .btn,
+      input,
+      select,
+      textarea,
+      #control-panel,
+      #stats-panel,
+      #time-slider-container,
+      #minimap-container,
+      #app-footer,
+      .leaflet-marker-icon.awesome-marker {
+        transition: all 0.3s ease;
+      }
 
-.map-wrap { position:relative; flex:1; min-width:0; }
-#map { width:100%; height:100%; background:#0d1119; }
+      #app {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+      }
 
-.stats { display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:var(--border); border-top:1px solid var(--border); flex-shrink:0; }
-.stats__item { background:var(--bg-panel); padding:12px 20px; display:flex; flex-direction:column; gap:4px; }
-.stats__label { font-family:var(--font-head); font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--text-muted); }
-.stats__value { font-size:18px; font-weight:500; color:var(--text-primary); }
-.stats__value--gain { color:var(--gain); }
-.stats__value--loss { color:var(--loss); }
+      #map {
+        position: absolute;
+        inset: 0;
+      }
 
-  #stats-panel { background: var(--bg-panel-alt); border: 1px solid var(--border-soft); border-radius: var(--radius); padding: 12px; color: var(--text-primary); font-size: 13px; line-height: 1.5; }
-  #stats-panel strong { color: var(--text-muted); }
-  #stats-diff { margin-top: 8px; color: var(--text-primary); }
-.leaflet-control, .leaflet-bar, .leaflet-control-layers, .leaflet-control-zoom, .leaflet-control-attribution {
-  background: rgba(18, 22, 31, 0.95);
-  color: var(--text-primary);
-  border: 1px solid rgba(35, 41, 56, 0.85);
-}
-.leaflet-bar a, .leaflet-control-layers-toggle, .leaflet-control-layers-list, .leaflet-control-layers-expanded {
-  background: #12161f;
-  color: var(--text-primary);
-}
-.leaflet-bar a:hover, .leaflet-control-layers-toggle:hover {
-  background: #1a2030;
-  color: var(--accent-amber);
-}
+      #map-atmosphere {
+        pointer-events: none;
+        position: absolute;
+        inset: 0;
+        z-index: 420;
+        background:
+          radial-gradient(circle at 16% 22%, rgba(45, 212, 191, 0.1), transparent 44%),
+          radial-gradient(circle at 84% 72%, rgba(96, 165, 250, 0.09), transparent 42%),
+          linear-gradient(180deg, rgba(2, 6, 14, 0.22), rgba(2, 6, 14, 0.42));
+      }
 
-@media (max-width: 820px) {
-  .layout { flex-direction:column; }
-  .panel { width:100%; flex-direction:row; flex-wrap:wrap; border-right:none; border-bottom:1px solid var(--border); max-height:260px; }
-  .panel__block--grow { min-height:80px; }
-  .stats { grid-template-columns:repeat(2,1fr); }
-}
-</style>
-</head>
-<body>
+      #map-atmosphere::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        opacity: 0.18;
+        background-image: radial-gradient(rgba(255, 255, 255, 0.3) 0.6px, transparent 0.6px);
+        background-size: 3px 3px;
+      }
 
-  <div class="app">
+      .glass-panel {
+        background: rgba(0, 0, 0, 0.7);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        -webkit-backdrop-filter: blur(15px);
+        backdrop-filter: blur(15px);
+        border-radius: var(--radius);
+        box-shadow: 0 18px 42px rgba(0, 0, 0, 0.45);
+      }
 
-    <div class="demo-banner">
-      ⚑ КАРТА ФИКСИРОВАНА НА 12.07.2026. Линия фронта загружается из нового GeoJSON-файла и отображается с цветом.
-    </div>
+      #control-panel {
+        position: absolute;
+        z-index: 1600;
+        top: 16px;
+        left: 16px;
+        width: min(360px, calc(100vw - 32px));
+        max-height: calc(100vh - 32px);
+        overflow: auto;
+        padding: 14px;
+      }
 
-    <header class="topbar">
-      <div class="topbar__brand">
-        <span class="topbar__dot"></span>
-        <h1>ОПЕРАТИВНАЯ КАРТА<span class="topbar__accent">.</span></h1>
+      #stats-panel {
+        position: absolute;
+        z-index: 1600;
+        top: 16px;
+        right: 16px;
+        width: min(320px, calc(100vw - 32px));
+        padding: 14px;
+      }
+
+      #minimap-container {
+        position: absolute;
+        right: 16px;
+        bottom: 108px;
+        z-index: 1500;
+        width: 180px;
+        height: 180px;
+        overflow: hidden;
+      }
+
+      #minimap {
+        width: 100%;
+        height: 100%;
+      }
+
+      #time-slider-container {
+        position: absolute;
+        z-index: 1600;
+        left: 50%;
+        bottom: 16px;
+        transform: translateX(-50%);
+        width: min(880px, calc(100vw - 32px));
+        padding: 12px 14px;
+      }
+
+      .panel-title {
+        margin: 0 0 10px 0;
+        font-size: 16px;
+        letter-spacing: 0.02em;
+      }
+
+      .closable-panel {
+        position: absolute;
+      }
+
+      .panel-close-btn {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        width: 30px;
+        height: 30px;
+        border-radius: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        background: rgba(0, 0, 0, 0.35);
+        color: #d6e2ef;
+        cursor: pointer;
+        z-index: 2;
+      }
+
+      .panel-close-btn:hover {
+        border-color: rgba(96, 165, 250, 0.75);
+      }
+
+      .is-collapsed {
+        opacity: 0;
+        pointer-events: none;
+        transform: scale(0.98);
+        visibility: hidden;
+      }
+
+      .muted {
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .controls,
+      .row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .spacer-12 {
+        height: 12px;
+      }
+
+      .panel-subtitle {
+        font-size: 14px;
+      }
+
+      .legend i.freed {
+        color: var(--accent);
+      }
+
+      .legend i.fight {
+        color: var(--danger);
+      }
+
+      .legend i.control {
+        color: var(--info);
+      }
+
+      .controls {
+        margin-top: 10px;
+      }
+
+      .btn {
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        background: rgba(255, 255, 255, 0.04);
+        color: var(--text);
+        border-radius: 10px;
+        padding: 8px 11px;
+        cursor: pointer;
+        font-size: 13px;
+      }
+
+      .btn:hover {
+        transform: translateY(-1px);
+        border-color: rgba(45, 212, 191, 0.75);
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
+      }
+
+      .btn.active {
+        border-color: rgba(45, 212, 191, 0.95);
+        background: rgba(45, 212, 191, 0.12);
+      }
+
+      input,
+      select,
+      textarea {
+        width: 100%;
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        background: rgba(0, 0, 0, 0.35);
+        color: var(--text);
+        padding: 8px 10px;
+        font-size: 13px;
+      }
+
+      ul.legend {
+        list-style: none;
+        margin: 8px 0 0;
+        padding: 0;
+      }
+
+      ul.legend li {
+        margin: 6px 0;
+        font-size: 13px;
+      }
+
+      .stat-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        margin: 8px 0;
+      }
+
+      .stat-value {
+        font-weight: 600;
+      }
+
+      .chart-wrap {
+        height: 122px;
+      }
+
+      .slider-label {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 8px;
+        font-size: 13px;
+      }
+
+      .slider-label-right {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .btn-play {
+        padding: 5px 10px;
+        font-size: 12px;
+        min-width: 68px;
+      }
+
+      .playback-speed {
+        width: 66px;
+        padding: 4px 6px;
+        font-size: 12px;
+      }
+
+      .timeline-date-select {
+        width: 132px;
+        padding: 4px 6px;
+        font-size: 12px;
+      }
+
+      .slider-track {
+        height: 5px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.12);
+        position: relative;
+      }
+
+      .slider-fill {
+        position: absolute;
+        inset: 0 auto 0 0;
+        width: 0;
+        border-radius: 999px;
+        background: linear-gradient(90deg, #2dd4bf, #60a5fa);
+      }
+
+      input[type="range"] {
+        margin: 8px 0 0;
+        width: 100%;
+        background: transparent;
+        cursor: pointer;
+        appearance: none;
+      }
+
+      input[type="range"]::-webkit-slider-thumb {
+        appearance: none;
+        width: 15px;
+        height: 15px;
+        border-radius: 50%;
+        border: 1px solid rgba(255, 255, 255, 0.7);
+        background: #2dd4bf;
+      }
+
+      input[type="range"]::-moz-range-thumb {
+        width: 15px;
+        height: 15px;
+        border-radius: 50%;
+        border: 1px solid rgba(255, 255, 255, 0.7);
+        background: #2dd4bf;
+      }
+
+      .slider-info {
+        margin-top: 8px;
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      .range-controls {
+        margin-top: 8px;
+        display: grid;
+        grid-template-columns: 1fr 1fr auto;
+        gap: 8px;
+        align-items: end;
+      }
+
+      .range-label {
+        display: block;
+        margin-bottom: 4px;
+        font-size: 11px;
+        color: var(--muted);
+      }
+
+      .range-btn {
+        height: 36px;
+      }
+
+      .range-analytics {
+        margin-top: 10px;
+        border-top: 1px solid rgba(255, 255, 255, 0.12);
+        padding-top: 10px;
+      }
+
+      .range-title {
+        font-size: 12px;
+        color: #d9e5f2;
+        margin-bottom: 6px;
+      }
+
+      .range-settlements {
+        margin: 6px 0 0;
+        padding-left: 16px;
+        max-height: 96px;
+        overflow: auto;
+      }
+
+      .range-settlements li {
+        margin: 3px 0;
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      .trend-metrics {
+        margin-top: 10px;
+        border-top: 1px solid rgba(255, 255, 255, 0.12);
+        padding-top: 10px;
+      }
+
+      .regional-progress {
+        margin-top: 10px;
+        border-top: 1px solid rgba(255, 255, 255, 0.12);
+        padding-top: 10px;
+      }
+
+      .regional-progress-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .region-progress-card {
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 10px;
+        padding: 8px;
+        background: rgba(255, 255, 255, 0.03);
+      }
+
+      .region-progress-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 6px;
+        font-size: 12px;
+      }
+
+      .region-progress-name {
+        color: #dce8f6;
+        font-weight: 600;
+      }
+
+      .region-progress-text {
+        font-size: 11px;
+        color: #9aa7bb;
+        line-height: 1.3;
+      }
+
+      .region-progress-bar {
+        width: 100%;
+        height: 8px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.12);
+        overflow: hidden;
+      }
+
+      .region-progress-bar-fill {
+        width: 0;
+        height: 100%;
+        border-radius: inherit;
+        background: linear-gradient(90deg, #2dd4bf, #22c55e);
+      }
+
+      .trend-arrow {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 16px;
+        font-size: 12px;
+        margin-left: 6px;
+      }
+
+      .trend-arrow.up {
+        color: #34d399;
+      }
+
+      .trend-arrow.down {
+        color: #ef4444;
+      }
+
+      .trend-arrow.flat {
+        color: #94a3b8;
+      }
+
+      .timeline-events {
+        margin-top: 10px;
+        display: flex;
+        gap: 8px;
+        overflow-x: auto;
+        padding-bottom: 2px;
+      }
+
+      .event-pill {
+        min-width: 150px;
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 10px;
+        padding: 7px 9px;
+        cursor: pointer;
+      }
+
+      .event-pill:hover {
+        border-color: rgba(96, 165, 250, 0.8);
+        transform: translateY(-1px);
+      }
+
+      .event-pill-title {
+        font-size: 12px;
+        font-weight: 600;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .event-pill-sub {
+        margin-top: 3px;
+        font-size: 11px;
+        color: var(--muted);
+      }
+
+      .popup-form {
+        min-width: 210px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .popup-source-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        margin-top: 8px;
+        padding: 6px 10px;
+        border-radius: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        color: #e6edf7;
+        background: rgba(59, 130, 246, 0.2);
+        text-decoration: none;
+      }
+
+      .leaflet-marker-icon.awesome-marker {
+        transform-origin: center bottom;
+      }
+
+      .leaflet-marker-icon.awesome-marker:hover {
+        transform: scale(1.1);
+      }
+
+      .leaflet-control-layers {
+        border: 1px solid rgba(255, 255, 255, 0.18) !important;
+        border-radius: 12px !important;
+        background: rgba(0, 0, 0, 0.62) !important;
+        -webkit-backdrop-filter: blur(12px);
+        backdrop-filter: blur(12px);
+        color: #dbe7f4;
+        box-shadow: 0 16px 34px rgba(0, 0, 0, 0.35);
+      }
+
+      .leaflet-control-layers-toggle {
+        width: 36px !important;
+        height: 36px !important;
+        border-radius: 10px !important;
+        background-color: rgba(14, 19, 30, 0.9) !important;
+      }
+
+      .leaflet-control-layers-expanded {
+        padding: 10px 12px !important;
+      }
+
+      .leaflet-control-layers-list,
+      .leaflet-control-layers-base label,
+      .leaflet-control-layers-overlays label {
+        color: #dbe7f4;
+        font-size: 13px;
+      }
+
+      .leaflet-control-container {
+        z-index: 1750;
+        position: relative;
+      }
+
+      .marker-pulse {
+        animation: markerPulse 1.8s ease-out;
+      }
+
+      @keyframes markerPulse {
+        0% {
+          transform: scale(0.85);
+          filter: drop-shadow(0 0 0 rgba(45, 212, 191, 0));
+        }
+        35% {
+          transform: scale(1.22);
+          filter: drop-shadow(0 0 14px rgba(45, 212, 191, 0.85));
+        }
+        100% {
+          transform: scale(1);
+          filter: drop-shadow(0 0 0 rgba(45, 212, 191, 0));
+        }
+      }
+
+      .marker-cluster,
+      .marker-cluster div {
+        background: rgba(45, 212, 191, 0.24);
+        border: 1px solid rgba(45, 212, 191, 0.6);
+        color: #e6edf7;
+      }
+
+      #toast-stack {
+        position: absolute;
+        z-index: 1850;
+        right: 16px;
+        bottom: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        pointer-events: none;
+      }
+
+      .toast {
+        min-width: 220px;
+        max-width: 340px;
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        background: rgba(5, 8, 14, 0.85);
+        color: #d9e4f2;
+        padding: 8px 10px;
+        box-shadow: 0 12px 26px rgba(0, 0, 0, 0.35);
+        transform: translateY(6px);
+        opacity: 0;
+      }
+
+      .toast.show {
+        transform: translateY(0);
+        opacity: 1;
+      }
+
+      .toast.info {
+        border-color: rgba(96, 165, 250, 0.5);
+      }
+
+      .toast.success {
+        border-color: rgba(45, 212, 191, 0.7);
+      }
+
+      #panel-dock {
+        position: absolute;
+        z-index: 1700;
+        left: 16px;
+        bottom: 66px;
+        display: flex;
+        gap: 8px;
+        padding: 8px;
+      }
+
+      .dock-btn {
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.06);
+        color: #d9e5f2;
+        font-size: 12px;
+        padding: 6px 8px;
+        cursor: pointer;
+      }
+
+      .dock-btn[hidden] {
+        display: none;
+      }
+
+      .leaflet-tooltip.change-tooltip {
+        background: rgba(0, 0, 0, 0.82);
+        border: 1px solid rgba(45, 212, 191, 0.6);
+        color: var(--text);
+        border-radius: 8px;
+        font-size: 12px;
+        padding: 6px 8px;
+      }
+
+      #control-panel::-webkit-scrollbar,
+      .scroll-dark::-webkit-scrollbar {
+        width: 10px;
+      }
+
+      #control-panel::-webkit-scrollbar-track,
+      .scroll-dark::-webkit-scrollbar-track {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 10px;
+      }
+
+      #control-panel::-webkit-scrollbar-thumb,
+      .scroll-dark::-webkit-scrollbar-thumb {
+        background: linear-gradient(180deg, #1f2937, #374151);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 10px;
+      }
+
+      body.focus-mode #control-panel,
+      body.focus-mode #stats-panel,
+      body.focus-mode #time-slider-container,
+      body.focus-mode #minimap-container,
+      body.focus-mode #app-footer,
+      body.focus-mode #panel-dock,
+      body.focus-mode #date-display,
+      body.focus-mode #quick-tools {
+        opacity: 0;
+        pointer-events: none;
+        transform: translateY(8px);
+      }
+
+      #app-footer {
+        position: absolute;
+        z-index: 1500;
+        left: 16px;
+        bottom: 16px;
+        padding: 8px 10px;
+        font-size: 11px;
+      }
+
+      #tile-source-indicator {
+        position: absolute;
+        z-index: 1600;
+        bottom: 52px;
+        right: 16px;
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        padding: 5px 10px;
+        border-radius: 8px;
+        background: rgba(0, 0, 0, 0.62);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        -webkit-backdrop-filter: blur(10px);
+        backdrop-filter: blur(10px);
+        font-size: 11px;
+        color: #c8d8eb;
+        pointer-events: none;
+      }
+
+      .source-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #2dd4bf;
+        flex-shrink: 0;
+      }
+
+      .source-dot.warn {
+        background: #f59e0b;
+      }
+
+      body.focus-mode #tile-source-indicator {
+        opacity: 0;
+      }
+
+      #date-display {
+        position: absolute;
+        z-index: 1650;
+        top: 16px;
+        left: 50%;
+        transform: translateX(-50%);
+        padding: 8px 12px;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        pointer-events: none;
+        font-size: 13px;
+        color: #d9e5f2;
+      }
+
+      #quick-tools {
+        position: absolute;
+        z-index: 1650;
+        top: 16px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: min(560px, calc(100vw - 32px));
+        pointer-events: none;
+      }
+
+      .quick-btn {
+        pointer-events: auto;
+        position: absolute;
+        width: 38px;
+        height: 38px;
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        background: rgba(0, 0, 0, 0.62);
+        color: #dce8f5;
+        cursor: pointer;
+        -webkit-backdrop-filter: blur(10px);
+        backdrop-filter: blur(10px);
+      }
+
+      .quick-btn:hover {
+        border-color: rgba(45, 212, 191, 0.85);
+      }
+
+      #home-control {
+        left: 0;
+      }
+
+      #help-btn {
+        right: 0;
+      }
+
+      #info-modal {
+        position: fixed;
+        inset: 0;
+        z-index: 1900;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        background: rgba(2, 6, 14, 0.6);
+        -webkit-backdrop-filter: blur(3px);
+        backdrop-filter: blur(3px);
+        padding: 16px;
+      }
+
+      #info-modal.is-open {
+        display: flex;
+      }
+
+      .modal-card {
+        width: min(520px, calc(100vw - 32px));
+        padding: 14px;
+      }
+
+      .modal-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+      }
+
+      .modal-head h3 {
+        margin: 0;
+        font-size: 16px;
+      }
+
+      .modal-close {
+        width: 32px;
+        height: 32px;
+      }
+
+      .modal-body {
+        margin-top: 8px;
+        font-size: 13px;
+        color: #c8d6e6;
+        line-height: 1.5;
+      }
+
+      .visually-hidden {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
+
+      @media (max-width: 980px) {
+        #stats-panel {
+          top: auto;
+          right: 16px;
+          bottom: 108px;
+        }
+
+        #date-display {
+          top: 62px;
+        }
+
+        #quick-tools {
+          top: 62px;
+        }
+
+        #minimap-container {
+          display: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <div id="map"></div>
+      <div id="map-atmosphere"></div>
+      <div id="date-display" class="glass-panel">
+        <i class="fa fa-calendar-alt"></i>
+        <span id="current-date-display">-</span>
       </div>
-      <div class="topbar__meta"><span id="clock" class="mono"></span></div>
-    </header>
+      <div id="quick-tools">
+        <button id="home-control" class="quick-btn" type="button" title="Домик: вернуть вид к региону"><i class="fa fa-home"></i></button>
+        <button id="help-btn" class="quick-btn" type="button" title="Справка">?</button>
+      </div>
 
-    <div class="layout">
+      <aside id="control-panel" class="glass-panel scroll-dark closable-panel" data-panel-id="control-panel">
+        <button class="panel-close-btn" type="button" title="Скрыть панель" data-close-panel="control-panel"><i class="fa fa-times"></i></button>
+        <h2 class="panel-title">Панель управления</h2>
+        <div class="muted">Исторические GeoJSON из каталога data</div>
 
-      <aside class="panel">
+        <div class="controls">
+          <button id="admin-toggle" class="btn"><i class="fa fa-user-shield"></i> Админ-режим</button>
+          <button id="focus-toggle" class="btn"><i class="fa fa-eye-slash"></i> Фокус-режим</button>
+          <button id="btn-refresh" class="btn"><i class="fa fa-sync"></i> Обновить</button>
+          <button id="btn-export" class="btn"><i class="fa fa-download"></i> Отчет</button>
+        </div>
 
-        <section class="panel__block">
-          <label class="panel__label" for="date-select">Дата карты</label>
-          <select id="date-select" class="date-input"></select>
-        </section>
+        <div class="spacer-12"></div>
+        <h3 class="panel-title panel-subtitle">Легенда НП</h3>
+        <ul class="legend">
+          <li><i class="fa fa-map-marker-alt freed"></i> Освобождение</li>
+          <li><i class="fa fa-map-marker-alt fight"></i> Бои</li>
+          <li><i class="fa fa-map-marker-alt control"></i> Контроль</li>
+        </ul>
 
-        <section class="panel__block">
-          <span class="panel__label">Статистика</span>
-          <div id="stats-panel">
-            <div><strong>Базовая дата:</strong> 12.07.2026</div>
-            <div id="stats-diff" class="mono">Выберите дату для сравнения</div>
-          </div>
-        </section>
-
-        <section class="panel__block">
-          <span class="panel__label">Легенда</span>
-          <ul class="legend">
-            <li><span class="legend__swatch legend__swatch--current"></span>Базовая линия фронта (12.07.2026)</li>
-            <li><span class="legend__swatch legend__swatch--gain"></span>Продвижение (+)</li>
-            <li><span class="legend__swatch legend__swatch--loss"></span>Отход (−)</li>
-          </ul>
-        </section>
-
-        <section class="panel__block panel__block--grow">
-          <span class="panel__label">Статус загрузки</span>
-          <div id="status-log" class="status-log mono">
-            <p class="status-log__line status-log__line--muted">Инициализация…</p>
-          </div>
-        </section>
-
+        <div class="spacer-12"></div>
+        <h3 class="panel-title panel-subtitle">Сведения</h3>
+        <div class="muted"><strong>Всего файлов:</strong> <span id="info-files">0</span></div>
+        <div class="muted"><strong>Дата первого:</strong> <span id="info-first">-</span></div>
+        <div class="muted"><strong>Дата последнего:</strong> <span id="info-last">-</span></div>
       </aside>
 
-      <main class="map-wrap">
-        <div id="map"></div>
-      </main>
+      <section id="stats-panel" class="glass-panel closable-panel" data-panel-id="stats-panel">
+        <button class="panel-close-btn" type="button" title="Скрыть панель" data-close-panel="stats-panel"><i class="fa fa-times"></i></button>
+        <h3 class="panel-title">Статистика изменений</h3>
+        <div class="stat-row"><span class="muted">Площадь изменений</span><strong id="stat-area" class="stat-value">-</strong></div>
+        <div class="stat-row"><span class="muted">Освобождено (всего)</span><strong id="stat-freed-total" class="stat-value">0</strong></div>
+        <div class="stat-row"><span class="muted">Освобождено (сегодня)</span><strong id="stat-freed-today" class="stat-value">0</strong></div>
+        <div class="range-analytics">
+          <div class="range-title">Анализ за период</div>
+          <div class="stat-row"><span class="muted">Суммарная площадь</span><strong id="stat-range-area" class="stat-value">-</strong></div>
+          <div class="muted">НП за период:</div>
+          <ul id="range-settlements" class="range-settlements"></ul>
+        </div>
+        <div class="trend-metrics">
+          <div class="range-title">Мини-дашборд трендов</div>
+          <div class="stat-row">
+            <span class="muted">Длина фронта</span>
+            <strong id="stat-front-length" class="stat-value">-</strong>
+            <span id="trend-front" class="trend-arrow flat">→</span>
+          </div>
+          <div class="stat-row">
+            <span class="muted">Новые НП</span>
+            <strong id="stat-new-np" class="stat-value">0</strong>
+            <span id="trend-new-np" class="trend-arrow flat">→</span>
+          </div>
+          <div class="stat-row">
+            <span class="muted">Темп за 7 дней</span>
+            <strong id="stat-pace-7d" class="stat-value">0.00 км²/день</strong>
+            <span id="trend-pace-7d" class="trend-arrow flat">→</span>
+          </div>
+        </div>
+        <div class="regional-progress">
+          <div class="range-title">Прогресс освобождения регионов</div>
+          <div id="regional-progress-list" class="regional-progress-list"></div>
+        </div>
+        <div class="chart-wrap"><canvas id="trend-chart"></canvas></div>
+      </section>
 
+      <div id="minimap-container" class="glass-panel closable-panel" data-panel-id="minimap-container">
+        <button class="panel-close-btn" type="button" title="Скрыть панель" data-close-panel="minimap-container"><i class="fa fa-times"></i></button>
+        <div id="minimap"></div>
+      </div>
+
+      <section id="time-slider-container" class="glass-panel closable-panel" data-panel-id="time-slider-container">
+        <button class="panel-close-btn" type="button" title="Скрыть панель" data-close-panel="time-slider-container"><i class="fa fa-times"></i></button>
+        <div class="range-controls">
+          <div>
+            <label class="range-label" for="range-from">С</label>
+            <input id="range-from" type="date" />
+          </div>
+          <div>
+            <label class="range-label" for="range-to">По</label>
+            <input id="range-to" type="date" />
+          </div>
+          <button id="range-apply" class="btn range-btn" type="button">Применить</button>
+        </div>
+        <div class="slider-label">
+          <span><i class="fa fa-calendar"></i> История по датам</span>
+          <span class="slider-label-right">
+            <button id="play-btn" class="btn btn-play" type="button" aria-pressed="false">Play</button>
+            <select id="play-speed" class="playback-speed" aria-label="Скорость проигрывания">
+              <option value="1" selected>x1</option>
+              <option value="2">x2</option>
+              <option value="4">x4</option>
+            </select>
+            <select id="timeline-date-select" class="timeline-date-select" aria-label="Выбор даты таймлайна"></select>
+            <span id="slider-date">-</span>
+          </span>
+        </div>
+        <div class="slider-track"><div id="slider-fill" class="slider-fill"></div></div>
+        <label class="visually-hidden" for="time-slider">Выбор даты истории</label>
+        <input id="time-slider" type="range" min="0" max="0" value="0" />
+        <div class="slider-info">
+          <span id="slider-first">-</span>
+          <span>Смена даты без изменения камеры</span>
+          <span id="slider-last">-</span>
+        </div>
+        <div id="timeline-events" class="timeline-events"></div>
+      </section>
+
+      <footer id="app-footer" class="glass-panel muted">Leaflet · Leaflet.draw · Turf.js · Chart.js</footer>
+      <div id="tile-source-indicator">
+        <span class="source-dot" id="source-dot"></span>
+        <span id="source-label">Dark Mode</span>
+      </div>
+      <div id="panel-dock" class="glass-panel">
+        <button id="open-control-panel" class="dock-btn" type="button" data-open-panel="control-panel" hidden><i class="fa fa-sliders-h"></i> Управление</button>
+        <button id="open-stats-panel" class="dock-btn" type="button" data-open-panel="stats-panel" hidden><i class="fa fa-chart-line"></i> Статистика</button>
+        <button id="open-minimap-container" class="dock-btn" type="button" data-open-panel="minimap-container" hidden><i class="fa fa-map"></i> Миникарта</button>
+        <button id="open-time-slider-container" class="dock-btn" type="button" data-open-panel="time-slider-container" hidden><i class="fa fa-calendar"></i> Таймлайн</button>
+      </div>
+      <div id="info-modal" aria-hidden="true">
+        <div class="modal-card glass-panel" role="dialog" aria-modal="true" aria-labelledby="info-modal-title">
+          <div class="modal-head">
+            <h3 id="info-modal-title">О карте</h3>
+            <button id="info-modal-close" class="btn modal-close" type="button" aria-label="Закрыть"><i class="fa fa-times"></i></button>
+          </div>
+          <div class="modal-body">
+            <p>Карта показывает изменения по датам из GeoJSON в каталоге data и сохраняет камеру при смене периода.</p>
+            <p>Слайдер снизу переключает временные срезы, панель слева управляет режимами, справа доступны метрики и тренды.</p>
+            <p>Кнопка Домик возвращает обзор в исходный регион боевых действий.</p>
+          </div>
+        </div>
+      </div>
+      <div id="toast-stack"></div>
     </div>
 
-    <footer class="stats">
-      <div class="stats__item"><span class="stats__label">Дата сравнения</span><span id="stat-range" class="stats__value mono">—</span></div>
-      <div class="stats__item"><span class="stats__label">Площадь продвижения</span><span id="stat-gain" class="stats__value mono stats__value--gain">0.00 км²</span></div>
-      <div class="stats__item"><span class="stats__label">Площадь отхода</span><span id="stat-loss" class="stats__value mono stats__value--loss">0.00 км²</span></div>
-      <div class="stats__item"><span class="stats__label">Итоговое изменение</span><span id="stat-net" class="stats__value mono">0.00 км²</span></div>
-    </footer>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/leaflet.awesome-markers@2.0.5/dist/leaflet.awesome-markers.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+    <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
+    <script src="https://unpkg.com/@turf/turf@6.5.0/turf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
 
-  </div>
-
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6.5.0/turf.min.js"></script>
-
-  <script>
-  /* ==========================================================================
-     ВСТРОЕННЫЕ ДАННЫЕ (в боевой версии это отдельные файлы data/YYYY-MM-DD.json,
-     загружаемые через fetch — см. index.html/script.js). Здесь — то же самое,
-     но прямо в JS-объекте, чтобы пример открывался без локального сервера.
-     4 дня подряд: фронт последовательно продвигается на восток
-     и слегка отступает на юге сектора B — чтобы увидеть на карте
-     ОБА случая (и продвижение, и отход) сразу в первом же сравнении.
-     ========================================================================== */
-  const CONFIG = { initialCenter:[48.0,37.5], initialZoom:8, minZoom:4, maxZoom:14 };
-  const BASEMAPS = [
-    {
-      name: "OSM",
-      type: "tile",
-      url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-      options: {
-        subdomains: "abc",
-        maxZoom: 19,
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>'
-      },
-      default: true
-    },
-    {
-      name: "Google Satellite",
-      type: "tile",
-      url: "https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
-      options: {
-        subdomains: ["mt0","mt1","mt2","mt3"],
-        maxZoom: 20,
-        attribution: "&copy; Google"
-      }
-    },
-    {
-      name: "ESRI Satellite",
-      type: "tile",
-      url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-      options: {
-        maxZoom: 19,
-        attribution: "&copy; ESRI"
-      }
-    },
-    {
-      name: "ESRI Topo",
-      type: "tile",
-      url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",
-      options: {
-        maxZoom: 19,
-        attribution: "&copy; ESRI"
-      }
-    },
-    {
-      name: "Yandex Satellite",
-      type: "tile",
-      url: "https://core-sat.maps.yandex.net/tiles?l=sat&x={x}&y={y}&z={z}&scale=1&lang=ru_RU",
-      options: {
-        maxZoom: 19,
-        attribution: "&copy; Yandex",
-        noWrap: true,
-        tileSize: 256,
-        maxNativeZoom: 19
-      }
-    },
-    {
-      name: "Yandex Hybrid",
-      type: "tile",
-      url: "https://core-sat.maps.yandex.net/tiles?l=sat,skl&x={x}&y={y}&z={z}&scale=1&lang=ru_RU",
-      options: {
-        maxZoom: 19,
-        attribution: "&copy; Yandex",
-        noWrap: true,
-        tileSize: 256,
-        maxNativeZoom: 19
-      }
-    }
-  ];
-
-  const state = { map:null, baseLayer:null, currentLayer:null, gainLayer:null, lossLayer:null };
-
-  function buildLayer(def) {
-    if (def.type === "tile") {
-      return L.tileLayer(def.url, def.options);
-    }
-    if (def.type === "group") {
-      const layers = def.layers.map((item) => L.tileLayer(item.url, item.options));
-      return L.layerGroup(layers);
-    }
-    throw new Error(`Unsupported layer type: ${def.type}`);
-  }
-
-  function initMap() {
-    const map = L.map("map", { zoomControl:false, center:CONFIG.initialCenter, zoom:CONFIG.initialZoom, minZoom:CONFIG.minZoom, maxZoom:CONFIG.maxZoom });
-    const baseLayers = {};
-    let defaultLayer = null;
-    BASEMAPS.forEach((def) => {
-      const layer = buildLayer(def);
-      baseLayers[def.name] = layer;
-      if (def.default || !defaultLayer) {
-        defaultLayer = layer;
-      }
-    });
-    defaultLayer.addTo(map);
-    const layersControl = L.control.layers(baseLayers, {}, { position:"topright", collapsed:false }).addTo(map);
-    L.control.zoom({ position:"bottomright" }).addTo(map);
-    L.control.scale({ position:"bottomleft", imperial:false }).addTo(map);
-    state.map = map;
-    state.layersControl = layersControl;
-  }
-
-  const BASELINE_FILE = "front-line.geojson";
-  const DATE_OPTIONS = [
-    { label: "12.07.2026 (базовая)", file: "front-line.geojson" },
-    { label: "13.07.2026", file: "Untitled 13.07.2026.geojson" }
-  ];
-
-  function combineToSingleGeometry(fc) {
-    const feats = (fc.features||[]).filter(f => f.geometry && (f.geometry.type==="Polygon"||f.geometry.type==="MultiPolygon"));
-    if (feats.length===0) return null;
-    if (feats.length===1) return feats[0];
-    try {
-      return feats.reduce((acc,f) => turf.union(acc,f) || acc);
-    } catch(err) {
-      log(`Ошибка union: ${err.message}`, "warn");
-      return feats.reduce((big,f) => turf.area(f) > turf.area(big) ? f : big);
-    }
-  }
-
-  function calculateMetrics(poly12, poly13) {
-    if (!poly12 || !poly13) return { gainFeature:null, lossFeature:null, gainKm2:0, lossKm2:0, netKm2:0, diffKm2:0, status:"нет данных" };
-    const gainFeature = turf.difference(poly13, poly12);
-    const lossFeature = turf.difference(poly12, poly13);
-    const gainKm2 = gainFeature ? turf.area(gainFeature) / 1_000_000 : 0;
-    const lossKm2 = lossFeature ? turf.area(lossFeature) / 1_000_000 : 0;
-    const netKm2 = gainKm2 - lossKm2;
-    return {
-      gainFeature,
-      lossFeature,
-      gainKm2,
-      lossKm2,
-      netKm2,
-      diffKm2: Math.abs(netKm2),
-      status: netKm2 >= 0 ? "Продвижение" : "Отход"
-    };
-  }
-
-  function clearGeoJsonLayers() {
-    state.map.eachLayer((layer) => {
-      if (layer instanceof L.GeoJSON) {
-        state.map.removeLayer(layer);
-      }
-    });
-  }
-
-  async function updateMap(fileName) {
-    clearGeoJsonLayers();
-    state.baseLayer = null;
-    state.currentLayer = null;
-    state.gainLayer = null;
-    state.lossLayer = null;
-
-    try {
-      log(`Загружаем ${fileName}…`, "muted");
-      const [baseGeojson, currentGeojson] = await Promise.all([
-        loadGeoJson(BASELINE_FILE),
-        loadGeoJson(fileName)
-      ]);
-
-      const basePolygon = combineToSingleGeometry(baseGeojson);
-      const currentPolygon = combineToSingleGeometry(currentGeojson);
-      const metrics = calculateMetrics(basePolygon, currentPolygon);
-
-      state.baseLayer = L.geoJSON(baseGeojson, {
-        style: { color: "#e0a640", weight: 2, fillColor: "transparent", fillOpacity: 0, opacity: 0.9, dashArray: "6,6" },
-        onEachFeature: (feature, layer) => {
-          const label = feature.properties?.name || "Базовая карта 12.07.2026";
-          layer.bindPopup(label);
+    <script>
+      const App = {
+        cfg: {
+          dataPath: "data",
+          filesIndex: "data/files.json",
+          smoothFrontLines: false,
+          showFrontLines: true,
+          showFrontPolygons: true,
+          regionBoundaries: [],
+          regionProgressOverrides: {},
+          initialView: { center: [49.0, 31.0], zoom: 6 }
+        },
+        map: null,
+        minimap: null,
+        minimapRect: null,
+        chart: null,
+        drawControl: null,
+        layerControl: null,
+        cache: {
+          geojsonByFile: {},
+          pairMetrics: {}
+        },
+        layers: {
+          darkBase: null,
+          satelliteBase: null,
+          hybridBase: null,
+          topographicBase: null,
+          labelsOverlay: null,
+          heatEvents: null,
+          frontLinesToggle: null,
+          frontPolygonsToggle: null,
+          basePrev: null,
+          baseLatest: null,
+          change: null,
+          adminPoints: null,
+          adminCluster: null
+        },
+        state: {
+          history: [],
+          currentIndex: -1,
+          currentDateKey: "",
+          sourceFile: "",
+          changeAreaM2: 0,
+          lastChangeFeature: null,
+          adminEnabled: false,
+          adminPoints: [],
+          markerById: {},
+          pendingMarkerEditors: {},
+          rangeAreaM2: 0,
+          rangeDiffGeoJSON: { type: "FeatureCollection", features: [] },
+          rangeUnionPolygon: null,
+          rangeFromISO: "",
+          rangeToISO: "",
+          baseLayerName: "Dark Mode",
+          baseFallbackTriggered: {},
+          frontLengthKm: 0,
+          newNpCount: 0,
+          pace7dKm2PerDay: 0,
+          frontTrendDelta: 0,
+          newNpTrendDelta: 0,
+          paceTrendDelta: 0,
+          focusMode: false,
+          isUpdating: false,
+          areaSeriesKm2: [],
+          heatLayerInitialized: false,
+          animationTimer: null,
+          animationPlaying: false,
+          animationStepInProgress: false,
+          playbackSpeed: 1,
+          customCompareActive: false,
+          markerFilterMode: "today",
+          activeMarkerDateISO: "",
+          controlledZonesGeoJSON: { type: "FeatureCollection", features: [] }
         }
-      }).addTo(state.map);
+      };
 
-      const isBaselineView = fileName === BASELINE_FILE;
-      if (!isBaselineView) {
-        state.currentLayer = L.geoJSON(currentGeojson, {
-          style: { color: "#ff3b3b", weight: 2, fillColor: "#ff3b3b", fillOpacity: 0.12, opacity: 0.95 },
-          onEachFeature: (feature, layer) => {
-            const label = feature.properties?.name || feature.properties?.description || fileName;
-            layer.bindPopup(label);
+      const ADMIN_MARKERS_STORAGE_KEY = "cvo-admin-markers";
+      const REGION_TOTAL_AREAS_KM2 = {
+        "ДНР": 26500,
+        "ЛНР": 26700,
+        "Запорожская": 27200,
+        "Херсонская": 28400
+      };
+      const REGION_DISPLAY_ORDER = ["ДНР", "ЛНР", "Запорожская", "Херсонская"];
+
+      function todayISO() {
+        return new Date().toISOString().slice(0, 10);
+      }
+
+      function fmtKm2(m2) {
+        return (m2 / 1000000).toFixed(2) + " км²";
+      }
+
+      function fmtKm(km) {
+        return String(Math.round(Number(km) || 0)) + " км";
+      }
+
+      function parseDateFromFilename(name) {
+        const match = name.match(/(\d{1,2})\.(\d{1,2})\.(\d{2,4})/);
+        if (!match) return null;
+        let y = Number(match[3]);
+        if (y < 100) y += 2000;
+        return new Date(y, Number(match[2]) - 1, Number(match[1]));
+      }
+
+      function toISODate(dateObj) {
+        if (!dateObj) return "";
+        const y = dateObj.getFullYear();
+        const m = String(dateObj.getMonth() + 1).padStart(2, "0");
+        const d = String(dateObj.getDate()).padStart(2, "0");
+        return y + "-" + m + "-" + d;
+      }
+
+      function parseInputDate(value) {
+        if (!value) return null;
+        const date = new Date(value + "T00:00:00");
+        return Number.isNaN(date.getTime()) ? null : date;
+      }
+
+      function flattenPolygons(geo) {
+        const out = [];
+        if (!geo || !geo.features) return out;
+        for (const feature of geo.features) {
+          if (!feature || !feature.geometry) continue;
+          const gt = feature.geometry.type;
+          if (gt === "Polygon" || gt === "MultiPolygon") out.push(feature);
+        }
+        return out;
+      }
+
+      function unionAll(features) {
+        if (!features.length) return null;
+        let acc = features[0];
+        for (let i = 1; i < features.length; i += 1) {
+          try {
+            acc = turf.union(acc, features[i]) || acc;
+          } catch (_) {
+            continue;
           }
-        }).addTo(state.map);
+        }
+        return acc;
       }
 
-      if (!isBaselineView) {
-        if (metrics.gainFeature) {
-          state.gainLayer = L.geoJSON(metrics.gainFeature, {
-            style: { color: "#4f9d69", weight: 1, fillColor: "#4f9d69", fillOpacity: 0.35, opacity: 0.8 }
-          }).addTo(state.map);
+      function calcFrontLengthKm(geo) {
+        if (!geo || !Array.isArray(geo.features)) return 0;
+        let total = 0;
+
+        const lineFeatures = geo.features.filter(function (feature) {
+          if (!feature || !feature.geometry) return false;
+          const gt = feature.geometry.type;
+          return gt === "LineString" || gt === "MultiLineString";
+        });
+
+        const frontLineFeatures = lineFeatures.filter(function (feature) {
+          if (!feature || !feature.geometry) return false;
+          const isFrontById = String(feature.id || "") === "front_line";
+          const isFrontByType = feature.properties && feature.properties.type === "front_line";
+          return isFrontById || isFrontByType;
+        });
+
+        let selected = frontLineFeatures;
+
+        if (!selected.length) {
+          // Fallback for Yandex Constructor exports where front line is marked by red stroke style.
+          selected = lineFeatures.filter(function (feature) {
+            const stroke = feature && feature.properties ? String(feature.properties.stroke || "").toLowerCase() : "";
+            return stroke === "#ed4543" || stroke === "#ff0000" || stroke === "red";
+          });
         }
-        if (metrics.lossFeature) {
-          state.lossLayer = L.geoJSON(metrics.lossFeature, {
-            style: { color: "#c4453b", weight: 1, fillColor: "#c4453b", fillOpacity: 0.35, opacity: 0.8 }
-          }).addTo(state.map);
+
+        if (!selected.length) return 0;
+
+        selected.forEach(function (feature) {
+          try {
+            total += turf.length(feature, { units: "kilometers" }) || 0;
+          } catch (_) {
+          }
+        });
+
+        return Math.round(total);
+      }
+
+      function countNewNpByHistoryIndex(idx) {
+        const h = App.state.history;
+        if (!h || idx < 0 || idx + 1 >= h.length) return 0;
+        const dateObj = h[idx + 1].date;
+        if (!dateObj) return 0;
+        const iso = toISODate(dateObj);
+        return App.state.adminPoints.filter(function (point) {
+          return point.date === iso;
+        }).length;
+      }
+
+      async function getPairMetrics(idx) {
+        const h = App.state.history;
+        if (!h || idx < 0 || idx + 1 >= h.length) {
+          return { areaKm2: 0, frontLengthKm: 0 };
+        }
+
+        const key = h[idx].name + "=>" + h[idx + 1].name;
+        if (App.cache.pairMetrics[key]) return App.cache.pairMetrics[key];
+
+        const [prevData, latestData] = await Promise.all([getGeoData(h[idx].name), getGeoData(h[idx + 1].name)]);
+        const prevUnion = unionAll(flattenPolygons(prevData));
+        const latestUnion = unionAll(flattenPolygons(latestData));
+
+        let areaKm2 = 0;
+        if (latestUnion && prevUnion) {
+          try {
+            const diff = turf.difference(latestUnion, prevUnion);
+            areaKm2 = diff ? turf.area(diff) / 1000000 : 0;
+          } catch (_) {
+            areaKm2 = 0;
+          }
+        }
+
+        const frontLengthKm = calcFrontLengthKm(latestData);
+        const metric = { areaKm2: areaKm2, frontLengthKm: frontLengthKm };
+        App.cache.pairMetrics[key] = metric;
+        return metric;
+      }
+
+      async function updateTrendDashboard(idx) {
+        const h = App.state.history;
+        if (!h || h.length < 2 || idx < 0 || idx >= h.length - 1) {
+          App.state.frontLengthKm = 0;
+          App.state.newNpCount = 0;
+          App.state.pace7dKm2PerDay = 0;
+          App.state.frontTrendDelta = 0;
+          App.state.newNpTrendDelta = 0;
+          App.state.paceTrendDelta = 0;
+          return;
+        }
+
+        const cur = await getPairMetrics(idx);
+        const prev = idx > 0 ? await getPairMetrics(idx - 1) : null;
+
+        const from = Math.max(0, idx - 6);
+        const areaSeries = [];
+        for (let i = from; i <= idx; i += 1) {
+          const m = await getPairMetrics(i);
+          areaSeries.push(m.areaKm2);
+        }
+
+        const days = Math.max(1, areaSeries.length - 1);
+        const pace = areaSeries.length > 1 ? (areaSeries[areaSeries.length - 1] - areaSeries[0]) / days : 0;
+
+        let prevPace = 0;
+        if (idx > 0) {
+          const prevFrom = Math.max(0, idx - 1 - 6);
+          const prevAreaSeries = [];
+          for (let i = prevFrom; i <= idx - 1; i += 1) {
+            const m = await getPairMetrics(i);
+            prevAreaSeries.push(m.areaKm2);
+          }
+          const prevDays = Math.max(1, prevAreaSeries.length - 1);
+          prevPace = prevAreaSeries.length > 1 ? (prevAreaSeries[prevAreaSeries.length - 1] - prevAreaSeries[0]) / prevDays : 0;
+        }
+
+        const curNp = countNewNpByHistoryIndex(idx);
+        const prevNp = idx > 0 ? countNewNpByHistoryIndex(idx - 1) : 0;
+
+        App.state.frontLengthKm = cur.frontLengthKm;
+        App.state.newNpCount = curNp;
+        App.state.pace7dKm2PerDay = pace;
+        App.state.frontTrendDelta = prev ? cur.frontLengthKm - prev.frontLengthKm : 0;
+        App.state.newNpTrendDelta = curNp - prevNp;
+        App.state.paceTrendDelta = pace - prevPace;
+      }
+
+      function renderTrendArrow(elId, delta) {
+        const el = document.getElementById(elId);
+        if (!el) return;
+        el.classList.remove("up", "down", "flat");
+        if (delta > 0.0001) {
+          el.textContent = "↑";
+          el.classList.add("up");
+        } else if (delta < -0.0001) {
+          el.textContent = "↓";
+          el.classList.add("down");
+        } else {
+          el.textContent = "→";
+          el.classList.add("flat");
         }
       }
 
-      fitMapToLayer(state.currentLayer || state.baseLayer);
-      renderStatusMetrics(metrics, fileName, isBaselineView);
-      log(`Файл ${fileName} загружен и отображён`, "ok");
-    } catch (err) {
-      log(`Ошибка загрузки ${fileName}: ${err.message}`, "error");
-      document.getElementById("stats-diff").textContent = "Не удалось загрузить данные.";
-    }
-  }
+      function smoothFeatureLine(feature) {
+        const geometry = feature.geometry;
+        if (!geometry) return feature;
 
-  function renderStatusMetrics(metrics, fileName, isBaselineView = false) {
-    const diffText = isBaselineView
-      ? "Выбрана базовая карта 12.07.2026. Сравнение данных не выполняется."
-      : metrics.status === "нет данных"
-        ? "Нет данных для сравнения с базовой картой 12.07.2026."
-        : `${metrics.status}: ${metrics.diffKm2.toFixed(2)} км² (продвижение ${metrics.gainKm2.toFixed(2)} км², отход ${metrics.lossKm2.toFixed(2)} км²)`;
+        if (geometry.type === "LineString") {
+          try {
+            return turf.bezierSpline(feature, { sharpness: 0.65, resolution: 10000 });
+          } catch (_) {
+            return feature;
+          }
+        }
 
-    document.getElementById("stats-diff").textContent = diffText;
-    updateStatsPanel({
-      prevDateStr: "12.07.2026",
-      currDateStr: fileName.replace(/\.geojson$/i, ""),
-      gainKm2: metrics.gainKm2,
-      lossKm2: metrics.lossKm2,
-      isBaselineView
-    });
-  }
+        if (geometry.type === "MultiLineString") {
+          const smoothedLines = [];
+          for (const coords of geometry.coordinates) {
+            try {
+              const line = turf.lineString(coords, feature.properties || {});
+              const smooth = turf.bezierSpline(line, { sharpness: 0.65, resolution: 10000 });
+              if (smooth && smooth.geometry && smooth.geometry.coordinates) {
+                smoothedLines.push(smooth.geometry.coordinates);
+              }
+            } catch (_) {
+              smoothedLines.push(coords);
+            }
+          }
+          return {
+            ...feature,
+            geometry: {
+              type: "MultiLineString",
+              coordinates: smoothedLines
+            }
+          };
+        }
 
-  const areaKm2 = (f) => f ? turf.area(f)/1_000_000 : 0;
+        return feature;
+      }
 
+      function preprocessGeoJSON(input) {
+        if (!input || !Array.isArray(input.features)) return input;
 
-  function fitMapToLayer(layer) { if (layer && layer.getBounds().isValid()) state.map.fitBounds(layer.getBounds(), { padding:[30,30] }); }
+        if (!App.cfg.smoothFrontLines) {
+          return input;
+        }
 
-  function escapeHtml(str) { return String(str).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+        return {
+          ...input,
+          features: input.features.map((feature) => smoothFeatureLine(feature))
+        };
+      }
 
-  function updateStatsPanel({ prevDateStr, currDateStr, gainKm2, lossKm2, isBaselineView = false }) {
-    document.getElementById("stat-range").textContent = isBaselineView
-      ? "12.07.2026 (база)"
-      : prevDateStr ? `${prevDateStr} → ${currDateStr}` : "нет данных за пред. день";
-    document.getElementById("stat-gain").textContent = `${gainKm2.toFixed(2)} км²`;
-    document.getElementById("stat-loss").textContent = `${lossKm2.toFixed(2)} км²`;
-    const net = gainKm2 - lossKm2;
-    const netEl = document.getElementById("stat-net");
-    netEl.textContent = `${net>=0?"+":""}${net.toFixed(2)} км²`;
-    netEl.style.color = net>0 ? "var(--gain)" : net<0 ? "var(--loss)" : "var(--text-primary)";
-  }
+      function extractPolygonFeatures(item) {
+        if (!item) return [];
+        if (item.type === "FeatureCollection" && Array.isArray(item.features)) {
+          return item.features.filter(function (f) {
+            return f && f.geometry && (f.geometry.type === "Polygon" || f.geometry.type === "MultiPolygon");
+          });
+        }
+        if (item.type === "Feature" && item.geometry && (item.geometry.type === "Polygon" || item.geometry.type === "MultiPolygon")) {
+          return [item];
+        }
+        return [];
+      }
 
-  const statusLogEl = document.getElementById("status-log");
-  function log(message, type="muted") {
-    const line = document.createElement("p");
-    line.className = `status-log__line status-log__line--${type}`;
-    const time = new Date().toLocaleTimeString("ru-RU", { hour12:false });
-    line.textContent = `[${time}] ${message}`;
-    statusLogEl.prepend(line);
-    while (statusLogEl.children.length > 30) statusLogEl.removeChild(statusLogEl.lastChild);
-  }
+      async function getGeoData(fileName) {
+        if (App.cache.geojsonByFile[fileName]) {
+          return App.cache.geojsonByFile[fileName];
+        }
 
-  function initUI() {
-    const dateSelect = document.getElementById("date-select");
-    DATE_OPTIONS.forEach((option) => {
-      const node = document.createElement("option");
-      node.value = option.file;
-      node.textContent = option.label;
-      dateSelect.appendChild(node);
-    });
+        const raw = await fetch(App.cfg.dataPath + "/" + fileName + "?t=" + Date.now()).then(function (r) {
+          return r.json();
+        });
+        const pre = preprocessGeoJSON(raw);
+        App.cache.geojsonByFile[fileName] = pre;
+        return pre;
+      }
 
-    dateSelect.addEventListener("change", (e) => {
-      const fileName = e.target.value;
-      if (!fileName) return;
-      updateMap(fileName);
-    });
+      function unionFeatures(features) {
+        if (!features.length) return null;
+        let acc = features[0];
+        for (let i = 1; i < features.length; i += 1) {
+          try {
+            acc = turf.union(acc, features[i]) || acc;
+          } catch (_) {
+          }
+        }
+        return acc;
+      }
 
-    const initialFile = DATE_OPTIONS[0]?.file;
-    if (initialFile) {
-      dateSelect.value = initialFile;
-      updateMap(initialFile);
-    }
+      function toFeature(input) {
+        if (!input) return null;
+        if (input.type === "Feature" && input.geometry) return input;
+        if ((input.type === "Polygon" || input.type === "MultiPolygon") && input.coordinates) {
+          return {
+            type: "Feature",
+            properties: {},
+            geometry: input
+          };
+        }
+        return null;
+      }
 
-    log("Селектор дат и панель статистики инициализированы", "ok");
-  }
+      function normalizeTotalAreaM2(totalAreaRaw, fallbackAreaM2) {
+        const raw = Number(totalAreaRaw);
+        if (Number.isFinite(raw) && raw > 0) {
+          // Small values are treated as km2, otherwise as m2.
+          return raw < 1000000 ? raw * 1000000 : raw;
+        }
+        return Number.isFinite(fallbackAreaM2) && fallbackAreaM2 > 0 ? fallbackAreaM2 : 0;
+      }
 
-  async function loadGeoJson(url) {
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`Не удалось загрузить ${url}: HTTP ${response.status}`);
-    return response.json();
-  }
+      function getFeatureLabel(feature) {
+        if (!feature || !feature.properties) return "";
+        return String(
+          feature.properties.description ||
+          feature.properties.name ||
+          feature.properties.title ||
+          ""
+        );
+      }
 
+      function getRegionNameFromLabel(labelRaw) {
+        const label = String(labelRaw || "").toLowerCase();
+        if (!label) return "";
+        if (label.includes("луган") || label.includes("лнр")) return "ЛНР";
+        if (label.includes("донец") || label.includes("днр")) return "ДНР";
+        if (label.includes("запорож")) return "Запорожская";
+        if (label.includes("херсон")) return "Херсонская";
+        return "";
+      }
 
-  function initClock() {
-    const clockEl = document.getElementById("clock");
-    const tick = () => { clockEl.textContent = new Date().toLocaleString("ru-RU", { hour12:false, day:"2-digit", month:"2-digit", year:"numeric", hour:"2-digit", minute:"2-digit", second:"2-digit" }); };
-    tick(); setInterval(tick, 1000);
-  }
+      function getRegionNameByCentroid(feature) {
+        if (!feature) return "";
+        try {
+          const center = turf.centroid(feature);
+          const coords = center && center.geometry ? center.geometry.coordinates : null;
+          if (!coords || coords.length < 2) return "";
 
-  document.addEventListener("DOMContentLoaded", async () => { initMap(); initUI(); initClock(); });
-  </script>
+          const lng = Number(coords[0]);
+          const lat = Number(coords[1]);
+          if (!Number.isFinite(lng) || !Number.isFinite(lat)) return "";
 
-</body>
+          if (lng >= 38.2 && lat >= 48.2) return "ЛНР";
+          if (lng >= 36.2 && lat >= 47.4 && lng < 38.8) return "ДНР";
+          if (lng < 35.6 && lat < 47.6) return "Херсонская";
+          if (lng >= 35.0 && lat < 48.4) return "Запорожская";
+        } catch (_) {
+        }
+        return "";
+      }
+
+      function identifyRegionName(feature) {
+        return getRegionNameFromLabel(getFeatureLabel(feature)) || getRegionNameByCentroid(feature);
+      }
+
+      function extractRegionalPolygons(geojsonData) {
+        const polygons = extractPolygonFeatures(geojsonData);
+        const byRegion = {};
+
+        polygons.forEach(function (feature) {
+          const regionName = identifyRegionName(feature);
+          if (!regionName || byRegion[regionName]) return;
+          byRegion[regionName] = feature;
+        });
+
+        return REGION_DISPLAY_ORDER
+          .filter(function (regionName) {
+            return !!byRegion[regionName];
+          })
+          .map(function (regionName) {
+            return byRegion[regionName];
+          });
+      }
+
+      function syncRegionalGeoSources(geojsonData) {
+        const regionalPolygons = extractRegionalPolygons(geojsonData);
+
+        App.state.controlledZonesGeoJSON = {
+          type: "FeatureCollection",
+          features: regionalPolygons
+        };
+
+        App.cfg.regionBoundaries = regionalPolygons.map(function (feature) {
+          const regionName = identifyRegionName(feature);
+          return {
+            name: regionName,
+            totalArea: REGION_TOTAL_AREAS_KM2[regionName] || 0,
+            boundary: feature
+          };
+        });
+      }
+
+      function detectRegionChildrenByName(nameRaw) {
+        const name = String(nameRaw || "").toLowerCase();
+        const known = {
+          "ДНР": 26500,
+          "ЛНР": 26700,
+          "Запорожская": 27200,
+          "Херсонская": 28400
+        };
+
+        const hasDnr = name.includes("днр") || name.includes("донец");
+        const hasLnr = name.includes("лнр") || name.includes("луган");
+        const hasZap = name.includes("запорож");
+        const hasKherson = name.includes("херсон");
+
+        if (hasDnr && hasLnr) {
+          return [
+            { name: "ДНР", totalArea: known["ДНР"] },
+            { name: "ЛНР", totalArea: known["ЛНР"] }
+          ];
+        }
+
+        if (hasZap && hasKherson) {
+          return [
+            { name: "Запорожская", totalArea: known["Запорожская"] },
+            { name: "Херсонская", totalArea: known["Херсонская"] }
+          ];
+        }
+
+        return [];
+      }
+
+      function expandRegionEntries(regionBoundaries) {
+        const src = Array.isArray(regionBoundaries) ? regionBoundaries : [];
+        const out = [];
+
+        src.forEach(function (region, idx) {
+          if (!region) return;
+
+          const children = Array.isArray(region.children) && region.children.length
+            ? region.children
+            : detectRegionChildrenByName(region.name || region.title || region.id);
+
+          if (!children.length) {
+            out.push(region);
+            return;
+          }
+
+          const groupId = String(region.id || region.name || region.title || ("group_" + String(idx + 1)));
+          children.forEach(function (child, childIdx) {
+            out.push({
+              ...region,
+              id: groupId + "_child_" + String(childIdx + 1),
+              name: child && child.name ? child.name : ("Регион " + String(childIdx + 1)),
+              totalArea: child && child.totalArea ? child.totalArea : region.totalArea,
+              _groupBoundary: region.boundary || region.feature || region.geojson || region.geometry || region,
+              _groupId: groupId,
+              _isExpandedChild: true
+            });
+          });
+        });
+
+        return out;
+      }
+
+      function calculateRegionalProgress(controlledZones, regionBoundaries, options) {
+        const cfg = options || {};
+        const containerId = cfg.containerId || "regional-progress-list";
+        const container = document.getElementById(containerId);
+        if (!container) return [];
+
+        const overrides = cfg.progressOverrides || App.cfg.regionProgressOverrides || {};
+
+        const regions = expandRegionEntries(regionBoundaries);
+        if (!regions.length) {
+          container.innerHTML = '<div class="event-pill-sub">Добавьте regionBoundaries для расчета прогресса</div>';
+          return [];
+        }
+
+        const controlPolygons = extractPolygonFeatures(controlledZones);
+        const controlUnion = controlPolygons.length ? unionFeatures(controlPolygons) : null;
+
+        const cacheKey = [
+          String(cfg.cacheKey || ""),
+          String(controlPolygons.length),
+          String(regions.length),
+          String(regions.map(function (r) { return r && (r.name || r.id || "region"); }).join("|"))
+        ].join("::");
+
+        if (!cfg.force && calculateRegionalProgress._lastCacheKey === cacheKey) {
+          return Array.isArray(calculateRegionalProgress._lastResult) ? calculateRegionalProgress._lastResult : [];
+        }
+
+        const rows = [];
+        const fragment = document.createDocumentFragment();
+        const groupIntersectionCache = {};
+        const groupTotalAreaCache = {};
+        const groupAllocationByRegionId = {};
+
+        const grouped = {};
+        regions.forEach(function (region) {
+          if (!region || !region._groupId) return;
+          const gid = String(region._groupId);
+          if (!grouped[gid]) grouped[gid] = [];
+          grouped[gid].push(region);
+        });
+
+        Object.keys(grouped).forEach(function (gid) {
+          const siblings = grouped[gid];
+          if (!siblings || !siblings.length) return;
+
+          const first = siblings[0];
+          const groupBoundary = toFeature(first && first._groupBoundary);
+
+          let groupIntersectionM2 = 0;
+          if (groupBoundary && controlUnion) {
+            try {
+              const groupIntersection = turf.intersect(groupBoundary, controlUnion);
+              groupIntersectionM2 = groupIntersection ? (turf.area(groupIntersection) || 0) : 0;
+            } catch (_) {
+              groupIntersectionM2 = 0;
+            }
+          }
+
+          const siblingsWithArea = siblings.map(function (item) {
+            const feature = toFeature(item && (item.boundary || item.feature || item.geojson || item.geometry || item));
+            let fallbackAreaM2 = 0;
+            if (feature) {
+              try {
+                fallbackAreaM2 = turf.area(feature) || 0;
+              } catch (_) {
+                fallbackAreaM2 = 0;
+              }
+            }
+
+            const totalAreaM2 = normalizeTotalAreaM2(item && item.totalArea, fallbackAreaM2);
+            const regionName = String((item && (item.name || item.title || item.id)) || "");
+            const regionOverride = overrides && overrides[regionName] ? overrides[regionName] : null;
+            const overridePercent = regionOverride && Number.isFinite(Number(regionOverride.percent))
+              ? Math.max(0, Math.min(100, Number(regionOverride.percent)))
+              : null;
+
+            return {
+              id: String(item && item.id ? item.id : regionName),
+              name: regionName,
+              totalAreaM2: totalAreaM2,
+              overridePercent: overridePercent
+            };
+          });
+
+          const groupTotalM2 = siblingsWithArea.reduce(function (sum, item) {
+            return sum + (Number.isFinite(item.totalAreaM2) && item.totalAreaM2 > 0 ? item.totalAreaM2 : 0);
+          }, 0);
+
+          groupTotalAreaCache[gid] = groupTotalM2;
+          groupIntersectionCache[gid] = groupIntersectionM2;
+
+          let usedByOverridesM2 = 0;
+          siblingsWithArea.forEach(function (item) {
+            if (item.overridePercent == null) return;
+            const alloc = item.totalAreaM2 > 0 ? (item.totalAreaM2 * item.overridePercent / 100) : 0;
+            const clamped = Math.max(0, Math.min(item.totalAreaM2, alloc));
+            groupAllocationByRegionId[item.id] = clamped;
+            usedByOverridesM2 += clamped;
+          });
+
+          const remainingIntersectionM2 = Math.max(0, groupIntersectionM2 - usedByOverridesM2);
+          const remainingAreaM2 = siblingsWithArea.reduce(function (sum, item) {
+            if (item.overridePercent != null) return sum;
+            return sum + (item.totalAreaM2 > 0 ? item.totalAreaM2 : 0);
+          }, 0);
+
+          siblingsWithArea.forEach(function (item) {
+            if (item.overridePercent != null) return;
+            let alloc = 0;
+            if (remainingAreaM2 > 0 && remainingIntersectionM2 > 0) {
+              alloc = remainingIntersectionM2 * (item.totalAreaM2 / remainingAreaM2);
+            }
+            groupAllocationByRegionId[item.id] = Math.max(0, Math.min(item.totalAreaM2, alloc));
+          });
+        });
+
+        regions.forEach(function (region, idx) {
+          const name = String((region && (region.name || region.title || region.id)) || ("Регион " + String(idx + 1)));
+          const boundary = toFeature(region && (region.boundary || region.feature || region.geojson || region.geometry || region));
+          const groupBoundary = toFeature(region && region._groupBoundary);
+          const groupId = region && region._groupId ? String(region._groupId) : "";
+
+          let fallbackAreaM2 = 0;
+          if (boundary) {
+            try {
+              fallbackAreaM2 = turf.area(boundary) || 0;
+            } catch (_) {
+              fallbackAreaM2 = 0;
+            }
+          }
+
+          const totalAreaM2 = normalizeTotalAreaM2(region && region.totalArea, fallbackAreaM2);
+
+          let intersectionAreaM2 = 0;
+          const regionId = String((region && region.id) || name);
+          if (groupBoundary && controlUnion && totalAreaM2 > 0 && groupId) {
+            intersectionAreaM2 = Number(groupAllocationByRegionId[regionId] || 0);
+          } else if (boundary && controlUnion && totalAreaM2 > 0) {
+            try {
+              const intersection = turf.intersect(boundary, controlUnion);
+              intersectionAreaM2 = intersection ? (turf.area(intersection) || 0) : 0;
+            } catch (_) {
+              intersectionAreaM2 = 0;
+            }
+          }
+
+          let percent = totalAreaM2 > 0 ? (intersectionAreaM2 / totalAreaM2) * 100 : 0;
+          if (!Number.isFinite(percent)) percent = 0;
+          if (percent < 0) percent = 0;
+          if (percent > 100) percent = 100;
+
+          const freeKm2 = intersectionAreaM2 / 1000000;
+          const totalKm2 = totalAreaM2 / 1000000;
+
+          rows.push({
+            name: name,
+            percent: Number(percent.toFixed(2)),
+            intersectionAreaM2: intersectionAreaM2,
+            totalAreaM2: totalAreaM2
+          });
+
+          const card = document.createElement("div");
+          card.className = "region-progress-card";
+
+          const head = document.createElement("div");
+          head.className = "region-progress-head";
+
+          const title = document.createElement("div");
+          title.className = "region-progress-name";
+          title.textContent = name;
+
+          const pct = document.createElement("div");
+          pct.className = "stat-value";
+          pct.textContent = Number(percent.toFixed(1)).toFixed(1) + "%";
+
+          head.appendChild(title);
+          head.appendChild(pct);
+
+          const bar = document.createElement("div");
+          bar.className = "region-progress-bar";
+
+          const barFill = document.createElement("div");
+          barFill.className = "region-progress-bar-fill";
+          barFill.style.width = Number(percent.toFixed(2)) + "%";
+          bar.appendChild(barFill);
+
+          const text = document.createElement("div");
+          text.className = "region-progress-text";
+          text.textContent =
+            "Освобождено " +
+            Number(percent.toFixed(1)).toFixed(1) +
+            "% (" +
+            freeKm2.toFixed(2) +
+            " км² из " +
+            totalKm2.toFixed(2) +
+            " км²)";
+
+          card.appendChild(head);
+          card.appendChild(bar);
+          card.appendChild(text);
+          fragment.appendChild(card);
+        });
+
+        container.replaceChildren(fragment);
+
+        calculateRegionalProgress._lastCacheKey = cacheKey;
+        calculateRegionalProgress._lastResult = rows;
+
+        return rows;
+      }
+
+      function sanitizeURL(raw) {
+        if (!raw) return "";
+        const trimmed = String(raw).trim();
+        if (/^https?:\/\//i.test(trimmed)) return trimmed;
+        return "";
+      }
+
+      function loadStateFromURL() {
+        const params = new URLSearchParams(window.location.search);
+        const lat = Number(params.get("lat"));
+        const lng = Number(params.get("lng"));
+        const zoom = Number(params.get("zoom"));
+        const date = params.get("date");
+        const source = params.get("source");
+
+        return {
+          hasView: Number.isFinite(lat) && Number.isFinite(lng) && Number.isFinite(zoom),
+          lat: lat,
+          lng: lng,
+          zoom: zoom,
+          date: date || "",
+          source: source || ""
+        };
+      }
+
+      function updateURL() {
+        if (!App.map) return;
+        const c = App.map.getCenter();
+        const z = App.map.getZoom();
+
+        const params = new URLSearchParams();
+        if (App.state.sourceFile) {
+          params.set("source", App.state.sourceFile);
+        } else {
+          params.set("date", App.state.currentDateKey || "");
+        }
+        params.set("lat", c.lat.toFixed(5));
+        params.set("lng", c.lng.toFixed(5));
+        params.set("zoom", String(z));
+
+        const nextURL = window.location.pathname + "?" + params.toString();
+        if (nextURL !== window.location.pathname + window.location.search) {
+          window.history.pushState({
+            date: App.state.currentDateKey,
+            lat: c.lat,
+            lng: c.lng,
+            zoom: z
+          }, "", nextURL);
+        }
+      }
+
+      function showToast(message, kind) {
+        const stack = document.getElementById("toast-stack");
+        if (!stack) return;
+
+        const toast = document.createElement("div");
+        toast.className = "toast " + (kind || "info");
+        toast.textContent = message;
+        stack.appendChild(toast);
+
+        requestAnimationFrame(function () {
+          toast.classList.add("show");
+        });
+
+        setTimeout(function () {
+          toast.classList.remove("show");
+          setTimeout(function () {
+            if (toast.parentNode) toast.parentNode.removeChild(toast);
+          }, 320);
+        }, 2200);
+      }
+
+      function animateMarkerPulse(marker) {
+        const applyPulse = function () {
+          const el = marker.getElement();
+          if (!el) return;
+          el.classList.add("marker-pulse");
+          setTimeout(function () {
+            el.classList.remove("marker-pulse");
+          }, 1900);
+        };
+
+        setTimeout(applyPulse, 40);
+      }
+
+      function ensureClusterLayer() {
+        if (App.layers.adminCluster || !L.markerClusterGroup) return;
+        App.layers.adminCluster = L.markerClusterGroup({
+          disableClusteringAtZoom: 11,
+          showCoverageOnHover: false,
+          spiderfyOnMaxZoom: true,
+          removeOutsideVisibleBounds: true
+        });
+      }
+
+      function moveMarkersBetweenLayers(fromLayer, toLayer) {
+        const moved = [];
+        fromLayer.eachLayer(function (layer) {
+          moved.push(layer);
+        });
+        moved.forEach(function (layer) {
+          fromLayer.removeLayer(layer);
+          toLayer.addLayer(layer);
+        });
+      }
+
+      function syncMarkerPresentation() {
+        ensureClusterLayer();
+
+        if (!App.layers.adminCluster) {
+          if (!App.map.hasLayer(App.layers.adminPoints)) {
+            App.map.addLayer(App.layers.adminPoints);
+          }
+          return;
+        }
+
+        if (App.state.adminEnabled) {
+          if (App.layers.adminCluster.getLayers().length) {
+            moveMarkersBetweenLayers(App.layers.adminCluster, App.layers.adminPoints);
+          }
+          if (App.map.hasLayer(App.layers.adminCluster)) {
+            App.map.removeLayer(App.layers.adminCluster);
+          }
+          if (!App.map.hasLayer(App.layers.adminPoints)) {
+            App.map.addLayer(App.layers.adminPoints);
+          }
+          return;
+        }
+
+        if (App.layers.adminPoints.getLayers().length) {
+          moveMarkersBetweenLayers(App.layers.adminPoints, App.layers.adminCluster);
+        }
+        if (App.map.hasLayer(App.layers.adminPoints)) {
+          App.map.removeLayer(App.layers.adminPoints);
+        }
+        if (!App.map.hasLayer(App.layers.adminCluster)) {
+          App.map.addLayer(App.layers.adminCluster);
+        }
+      }
+
+      function parseMetaDate(meta) {
+        if (!meta || !meta.date) return null;
+        const d = new Date(meta.date + "T00:00:00");
+        return Number.isNaN(d.getTime()) ? null : d;
+      }
+
+      function toMarkerISO(value) {
+        if (!value) return "";
+        if (/^\d{4}-\d{2}-\d{2}$/.test(String(value))) return String(value);
+        const d = new Date(String(value));
+        if (Number.isNaN(d.getTime())) return "";
+        return toISODate(d);
+      }
+
+      function getMarkerFilterDateISO() {
+        if (App.state.markerFilterMode === "timeline") {
+          return toMarkerISO(App.state.activeMarkerDateISO);
+        }
+        return todayISO();
+      }
+
+      function shouldMarkerBeVisible(meta) {
+        const targetISO = getMarkerFilterDateISO();
+        const markerISO = toMarkerISO(meta && meta.date);
+        if (!targetISO) return true;
+        return markerISO === targetISO;
+      }
+
+      function saveAdminPointsToStorage() {
+        try {
+          localStorage.setItem(ADMIN_MARKERS_STORAGE_KEY, JSON.stringify(App.state.adminPoints || []));
+        } catch (_) {
+        }
+      }
+
+      function loadAdminPointsFromStorage() {
+        try {
+          const raw = localStorage.getItem(ADMIN_MARKERS_STORAGE_KEY);
+          if (!raw) return;
+          const parsed = JSON.parse(raw);
+          if (!Array.isArray(parsed)) return;
+
+          App.state.adminPoints = parsed
+            .filter(function (item) {
+              return item && Number.isFinite(Number(item.lat)) && Number.isFinite(Number(item.lng));
+            })
+            .map(function (item) {
+              return {
+                id: item.id || ("m_" + Date.now() + "_" + Math.floor(Math.random() * 100000)),
+                name: item.name || "Без названия",
+                type: item.type || "Контроль",
+                date: toMarkerISO(item.date) || todayISO(),
+                description: item.description || "",
+                source: sanitizeURL(item.source || ""),
+                lat: Number(item.lat),
+                lng: Number(item.lng),
+                properties: {
+                  ...(item.properties || {}),
+                  name: item.name || "Без названия",
+                  type: item.type || "Контроль",
+                  date: toMarkerISO(item.date) || todayISO(),
+                  description: item.description || "",
+                  source: sanitizeURL(item.source || "")
+                }
+              };
+            });
+        } catch (_) {
+          App.state.adminPoints = [];
+        }
+      }
+
+      function clearAdminLayers() {
+        if (App.layers.adminPoints && App.layers.adminPoints.clearLayers) {
+          App.layers.adminPoints.clearLayers();
+        }
+        if (App.layers.adminCluster && App.layers.adminCluster.clearLayers) {
+          App.layers.adminCluster.clearLayers();
+        }
+        App.state.markerById = {};
+      }
+
+      function rebuildVisibleAdminMarkers() {
+        clearAdminLayers();
+
+        const visible = (App.state.adminPoints || []).filter(function (meta) {
+          return shouldMarkerBeVisible(meta);
+        });
+
+        visible.forEach(function (meta) {
+          const marker = L.marker([Number(meta.lat), Number(meta.lng)], { icon: createMarkerIcon(meta.type) });
+          saveMarkerMeta(marker, meta);
+          App.layers.adminPoints.addLayer(marker);
+          App.state.markerById[meta.id] = marker;
+        });
+
+        syncMarkerPresentation();
+        updateEventHeatLayer(visible, App.map);
+      }
+
+      function panelStorageKey(id) {
+        return "cvo-panel-hidden-" + id;
+      }
+
+      function isPanelHidden(id) {
+        try {
+          return localStorage.getItem(panelStorageKey(id)) === "1";
+        } catch (_) {
+          return false;
+        }
+      }
+
+      function setPanelHiddenState(id, hidden) {
+        const panel = document.getElementById(id);
+        if (!panel) return;
+        panel.classList.toggle("is-collapsed", hidden);
+        try {
+          localStorage.setItem(panelStorageKey(id), hidden ? "1" : "0");
+        } catch (_) {
+        }
+      }
+
+      function syncPanelDock() {
+        const openButtons = document.querySelectorAll("[data-open-panel]");
+        openButtons.forEach(function (btn) {
+          const panelId = btn.getAttribute("data-open-panel");
+          const panel = panelId ? document.getElementById(panelId) : null;
+          const hidden = !!panel && panel.classList.contains("is-collapsed");
+          btn.hidden = !hidden;
+        });
+      }
+
+      function initPanelVisibilityControls() {
+        const closeButtons = document.querySelectorAll("[data-close-panel]");
+        closeButtons.forEach(function (btn) {
+          btn.addEventListener("click", function () {
+            const panelId = btn.getAttribute("data-close-panel");
+            if (!panelId) return;
+            setPanelHiddenState(panelId, true);
+            syncPanelDock();
+            showToast("Панель скрыта", "info");
+          });
+        });
+
+        const openButtons = document.querySelectorAll("[data-open-panel]");
+        openButtons.forEach(function (btn) {
+          btn.addEventListener("click", function () {
+            const panelId = btn.getAttribute("data-open-panel");
+            if (!panelId) return;
+            setPanelHiddenState(panelId, false);
+            syncPanelDock();
+            showToast("Панель возвращена", "success");
+          });
+        });
+
+        ["control-panel", "stats-panel", "minimap-container", "time-slider-container"].forEach(function (panelId) {
+          setPanelHiddenState(panelId, isPanelHidden(panelId));
+        });
+
+        syncPanelDock();
+      }
+
+      function getCurrentHistoryDate() {
+        const h = App.state.history;
+        const idx = App.state.currentIndex;
+        if (idx < 0 || idx + 1 >= h.length) return null;
+        return h[idx + 1].date || null;
+      }
+
+      function renderEventTimeline() {
+        const container = document.getElementById("timeline-events");
+        if (!container) return;
+
+        const currentDate = getCurrentHistoryDate();
+        const items = App.state.adminPoints
+          .filter(function (meta) {
+            if (!currentDate) return true;
+            const md = parseMetaDate(meta);
+            return !md || md <= currentDate;
+          })
+          .sort(function (a, b) {
+            return String(b.date).localeCompare(String(a.date));
+          })
+          .slice(0, 8);
+
+        if (!items.length) {
+          container.innerHTML = '<div class="event-pill-sub">События появятся после добавления меток</div>';
+          return;
+        }
+
+        container.innerHTML = items
+          .map(function (item) {
+            return (
+              '<button type="button" class="event-pill" data-marker-id="' +
+              item.id +
+              '">' +
+              '<div class="event-pill-title">' +
+              item.name +
+              '</div>' +
+              '<div class="event-pill-sub">' +
+              item.type +
+              " · " +
+              item.date +
+              "</div>" +
+              "</button>"
+            );
+          })
+          .join("");
+      }
+
+      function createChangeLayer(geojsonData) {
+        const normalized = normalizeChangeGeoJSON(geojsonData);
+
+        return L.geoJSON(normalized, {
+          style: function () {
+            return {
+              color: "#fbbf24",
+              weight: 2,
+              fillColor: "#f59e0b",
+              fillOpacity: 0.34
+            };
+          },
+          onEachFeature: function (feature, layer) {
+            if (!feature || !feature.geometry) return;
+            const gt = feature.geometry.type;
+            if (gt !== "Polygon") return;
+
+            let area = 0;
+            try {
+              area = turf.area(feature);
+            } catch (_) {
+              area = 0;
+            }
+
+            layer.bindTooltip("Площадь: " + (area / 1000000).toFixed(2) + " км²", {
+              className: "change-tooltip",
+              sticky: true,
+              direction: "top"
+            });
+          }
+        });
+      }
+
+      function normalizeChangeGeoJSON(geojsonData) {
+        const polys = extractPolygonFeatures(geojsonData);
+        const features = [];
+
+        polys.forEach(function (feature, featureIndex) {
+          if (!feature || !feature.geometry) return;
+
+          const props = { ...(feature.properties || {}) };
+          const fid = feature.id != null ? String(feature.id) : "change_" + String(featureIndex + 1);
+
+          if (feature.geometry.type === "Polygon") {
+            features.push({
+              type: "Feature",
+              id: fid,
+              properties: props,
+              geometry: feature.geometry
+            });
+            return;
+          }
+
+          if (feature.geometry.type === "MultiPolygon" && Array.isArray(feature.geometry.coordinates)) {
+            feature.geometry.coordinates.forEach(function (coords, partIndex) {
+              features.push({
+                type: "Feature",
+                id: fid + "_p" + String(partIndex + 1),
+                properties: {
+                  ...props,
+                  _parentId: fid,
+                  _partIndex: partIndex + 1
+                },
+                geometry: {
+                  type: "Polygon",
+                  coordinates: coords
+                }
+              });
+            });
+          }
+        });
+
+        return {
+          type: "FeatureCollection",
+          features: features
+        };
+      }
+
+      function getFrontLineWeight() {
+        const z = App.map ? App.map.getZoom() : 8;
+        if (z <= 7) return 4;
+        if (z <= 10) return 3;
+        if (z <= 12) return 2.5;
+        return 2;
+      }
+
+      function updateTileSourceIndicator(name, isFallback) {
+        const label = document.getElementById("source-label");
+        const dot = document.getElementById("source-dot");
+        if (label) label.textContent = isFallback ? name + " (резерв)" : name;
+        if (dot) dot.classList.toggle("warn", isFallback);
+      }
+
+      function registerTileFallback(layer, layerName, fallbackLayer, fallbackName) {
+        layer.on("tileerror", function () {
+          if (!App.map || !App.map.hasLayer(layer)) return;
+          if (App.state.baseFallbackTriggered[layerName]) return;
+
+          App.state.baseFallbackTriggered[layerName] = true;
+          App.state.baseLayerName = fallbackName;
+
+          App.map.removeLayer(layer);
+          if (!App.map.hasLayer(fallbackLayer)) {
+            App.map.addLayer(fallbackLayer);
+          }
+
+          updateTileSourceIndicator(fallbackName, true);
+          showToast("Подложка недоступна, включен резерв: " + fallbackName, "info");
+        });
+      }
+
+      async function rerenderCurrentFront() {
+        if (App.state.isUpdating) return;
+
+        const h = App.state.history;
+        if (!h || !h.length) return;
+
+        if (h.length === 1) {
+          await renderSingleSource(h[0].name);
+          return;
+        }
+
+        const idx = App.state.currentIndex;
+        if (idx < 0 || idx >= h.length - 1) return;
+        await compareFiles(h[idx].name, h[idx + 1].name);
+      }
+
+      function createFrontLayer(data, color, dashArray) {
+        return L.geoJSON(data, {
+          filter: function (feature) {
+            const gt = feature && feature.geometry ? feature.geometry.type : "";
+            if ((gt === "LineString" || gt === "MultiLineString") && !App.cfg.showFrontLines) return false;
+            if ((gt === "Polygon" || gt === "MultiPolygon") && !App.cfg.showFrontPolygons) return false;
+            return true;
+          },
+          style: function (feature) {
+            const gt = feature && feature.geometry ? feature.geometry.type : "";
+            if (gt === "LineString" || gt === "MultiLineString") {
+              return {
+                color: color,
+                weight: getFrontLineWeight(),
+                opacity: 0.95,
+                dashArray: dashArray || null
+              };
+            }
+
+            return {
+              color: color,
+              weight: 2,
+              opacity: 0.8,
+              fillOpacity: 0.03,
+              dashArray: dashArray || null
+            };
+          }
+        });
+      }
+
+      function createMarkerIcon(type) {
+        const mapType = {
+          "Освобождение": { markerColor: "green", icon: "flag-checkered" },
+          "Бои": { markerColor: "red", icon: "fire" },
+          "Контроль": { markerColor: "blue", icon: "shield" }
+        };
+        const cfg = mapType[type] || mapType["Контроль"];
+
+        if (!L.AwesomeMarkers || !L.AwesomeMarkers.icon) {
+          const fallbackColor = cfg.markerColor === "green" ? "#22c55e" : cfg.markerColor === "red" ? "#ef4444" : "#3b82f6";
+          return L.divIcon({
+            className: "settlement-marker-fallback",
+            iconSize: [22, 22],
+            html: '<i class="fa fa-map-marker-alt" style="font-size:22px;color:' + fallbackColor + '"></i>'
+          });
+        }
+
+        return L.AwesomeMarkers.icon({
+          icon: cfg.icon,
+          prefix: "fa",
+          markerColor: cfg.markerColor,
+          iconColor: "white",
+          extraClasses: "awesome-marker-animated"
+        });
+      }
+
+      function initMap() {
+        const startCenter = App.cfg.initialView.center;
+        const startZoom = App.cfg.initialView.zoom;
+
+        App.map = L.map("map", {
+          zoomControl: true,
+          preferCanvas: true
+        }).setView(startCenter, startZoom);
+
+        const urlState = loadStateFromURL();
+        if (urlState.hasView) {
+          App.map.setView([urlState.lat, urlState.lng], urlState.zoom, { animate: false });
+        }
+
+        App.map.createPane("labelsPane");
+        App.map.getPane("labelsPane").style.zIndex = "650";
+        App.map.getPane("labelsPane").style.pointerEvents = "none";
+
+        App.layers.darkBase = L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+          subdomains: "abcd",
+          maxZoom: 20,
+          attribution: "&copy; OpenStreetMap contributors &copy; CARTO"
+        });
+
+        App.layers.satelliteBase = L.tileLayer(
+          "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+          {
+            maxZoom: 20,
+            attribution: "Tiles &copy; Esri"
+          }
+        );
+
+        App.layers.hybridBase = L.tileLayer("https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}", {
+          subdomains: ["mt0", "mt1", "mt2", "mt3"],
+          maxZoom: 20,
+          attribution: "Map data &copy; Google"
+        });
+
+        App.layers.topographicBase = L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", {
+          subdomains: "abc",
+          maxZoom: 17,
+          attribution: "Map data: &copy; OpenTopoMap (CC-BY-SA)"
+        });
+
+        App.layers.labelsOverlay = L.tileLayer("https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png", {
+          subdomains: "abcd",
+          maxZoom: 20,
+          pane: "labelsPane",
+          opacity: 0.92,
+          attribution: "&copy; OpenStreetMap contributors &copy; CARTO"
+        });
+
+        App.layers.darkBase.addTo(App.map);
+        App.layers.labelsOverlay.addTo(App.map);
+
+        App.layers.frontLinesToggle = L.layerGroup().addTo(App.map);
+        App.layers.frontPolygonsToggle = L.layerGroup().addTo(App.map);
+
+        const baseMaps = {
+          "Dark Mode": App.layers.darkBase,
+          "Satellite": App.layers.satelliteBase,
+          "Hybrid": App.layers.hybridBase,
+          "Topographic": App.layers.topographicBase
+        };
+
+        const overlays = {
+          "Показывать названия НП": App.layers.labelsOverlay,
+          "Фронт: линии": App.layers.frontLinesToggle,
+          "Фронт: полигоны": App.layers.frontPolygonsToggle
+        };
+
+        App.layerControl = L.control.layers(baseMaps, overlays, {
+          position: "topright",
+          collapsed: true
+        }).addTo(App.map);
+
+        ensureHeatLayer(App.map, { radius: 25, blur: 15 });
+
+        App.layers.basePrev = createFrontLayer(null, "#34d399", "5 5").addTo(App.map);
+        App.layers.baseLatest = createFrontLayer(null, "#f97316", null).addTo(App.map);
+        App.layers.change = createChangeLayer(null).addTo(App.map);
+        App.layers.adminPoints = L.featureGroup().addTo(App.map);
+
+        ensureClusterLayer();
+
+        App.map.on("moveend", function () {
+          updateURL();
+        });
+
+        App.map.on("baselayerchange", function (event) {
+          App.state.baseFallbackTriggered = {};
+
+          const pickedSatellite = event.layer === App.layers.satelliteBase || event.layer === App.layers.hybridBase;
+          if (event.layer === App.layers.darkBase) App.state.baseLayerName = "Dark Mode";
+          if (event.layer === App.layers.satelliteBase) App.state.baseLayerName = "Satellite";
+          if (event.layer === App.layers.hybridBase) App.state.baseLayerName = "Hybrid";
+          if (event.layer === App.layers.topographicBase) App.state.baseLayerName = "Topographic";
+
+          updateTileSourceIndicator(App.state.baseLayerName, false);
+
+          if (pickedSatellite && !App.map.hasLayer(App.layers.labelsOverlay)) {
+            App.map.addLayer(App.layers.labelsOverlay);
+          }
+        });
+
+        App.map.on("overlayadd", function (event) {
+          if (event.layer === App.layers.frontLinesToggle) {
+            App.cfg.showFrontLines = true;
+            rerenderCurrentFront();
+          }
+          if (event.layer === App.layers.frontPolygonsToggle) {
+            App.cfg.showFrontPolygons = true;
+            rerenderCurrentFront();
+          }
+        });
+
+        App.map.on("overlayremove", function (event) {
+          if (event.layer === App.layers.frontLinesToggle) {
+            App.cfg.showFrontLines = false;
+            rerenderCurrentFront();
+          }
+          if (event.layer === App.layers.frontPolygonsToggle) {
+            App.cfg.showFrontPolygons = false;
+            rerenderCurrentFront();
+          }
+        });
+
+        registerTileFallback(App.layers.satelliteBase, "Satellite", App.layers.darkBase, "Dark Mode");
+        registerTileFallback(App.layers.hybridBase, "Hybrid", App.layers.darkBase, "Dark Mode");
+        registerTileFallback(App.layers.topographicBase, "Topographic", App.layers.darkBase, "Dark Mode");
+
+        App.map.on("zoomend", function () {
+          if (App.layers.basePrev && App.layers.basePrev.setStyle) App.layers.basePrev.setStyle(function (feature) {
+            const gt = feature && feature.geometry ? feature.geometry.type : "";
+            if (gt === "LineString" || gt === "MultiLineString") {
+              return { weight: getFrontLineWeight() };
+            }
+            return {};
+          });
+          if (App.layers.baseLatest && App.layers.baseLatest.setStyle) App.layers.baseLatest.setStyle(function (feature) {
+            const gt = feature && feature.geometry ? feature.geometry.type : "";
+            if (gt === "LineString" || gt === "MultiLineString") {
+              return { weight: getFrontLineWeight() };
+            }
+            return {};
+          });
+        });
+
+        initMiniMap();
+      }
+
+      function initMiniMap() {
+        App.minimap = L.map("minimap", {
+          zoomControl: false,
+          dragging: false,
+          touchZoom: false,
+          scrollWheelZoom: false,
+          attributionControl: false,
+          doubleClickZoom: false,
+          boxZoom: false,
+          keyboard: false
+        }).setView([49.0, 31.0], 4);
+
+        L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+          maxZoom: 9
+        }).addTo(App.minimap);
+
+        App.minimapRect = L.rectangle(App.map.getBounds(), {
+          color: "#2dd4bf",
+          weight: 1,
+          fill: false
+        }).addTo(App.minimap);
+
+        App.map.on("moveend", function () {
+          if (App.minimapRect) App.minimapRect.setBounds(App.map.getBounds());
+        });
+      }
+
+      async function loadFilesIndex() {
+        const urlState = loadStateFromURL();
+        if (urlState.source) {
+          App.state.sourceFile = urlState.source;
+          const sourceDate = parseDateFromFilename(urlState.source);
+          App.state.history = [{ name: urlState.source, date: sourceDate }];
+          updateInfo();
+          updateSliderBounds();
+          initRangeInputs();
+          return;
+        }
+
+        App.state.sourceFile = "";
+        const response = await fetch(App.cfg.filesIndex + "?t=" + Date.now());
+        if (!response.ok) {
+          throw new Error("Файл files.json не найден");
+        }
+
+        const list = await response.json();
+        if (!Array.isArray(list)) {
+          throw new Error("files.json должен содержать массив");
+        }
+
+        App.state.history = list
+          .map(function (name) {
+            return { name: name, date: parseDateFromFilename(name) };
+          })
+          .sort(function (a, b) {
+            if (a.date && b.date) return a.date - b.date;
+            if (a.date) return -1;
+            if (b.date) return 1;
+            return a.name.localeCompare(b.name);
+          });
+
+        updateInfo();
+        updateSliderBounds();
+        initRangeInputs();
+      }
+
+      function initRangeInputs() {
+        const h = App.state.history;
+        if (!h.length) return;
+
+        const fromInput = document.getElementById("range-from");
+        const toInput = document.getElementById("range-to");
+        if (!fromInput || !toInput) return;
+
+        const firstISO = h[0].date ? toISODate(h[0].date) : "";
+        const lastISO = h[h.length - 1].date ? toISODate(h[h.length - 1].date) : "";
+
+        fromInput.min = firstISO;
+        fromInput.max = lastISO;
+        toInput.min = firstISO;
+        toInput.max = lastISO;
+
+        if (!fromInput.value) fromInput.value = firstISO;
+        if (!toInput.value) toInput.value = lastISO;
+      }
+
+      async function updateRangeAnalytics() {
+        const fromInput = document.getElementById("range-from");
+        const toInput = document.getElementById("range-to");
+        if (!fromInput || !toInput) return;
+
+        let fromDate = parseInputDate(fromInput.value);
+        let toDate = parseInputDate(toInput.value);
+        if (!fromDate || !toDate) return;
+
+        if (fromDate > toDate) {
+          const tmp = fromDate;
+          fromDate = toDate;
+          toDate = tmp;
+          fromInput.value = toISODate(fromDate);
+          toInput.value = toISODate(toDate);
+        }
+
+        const h = App.state.history;
+        const startIdx = h.findIndex(function (item) {
+          return item.date && item.date >= fromDate;
+        });
+
+        let endIdx = -1;
+        for (let i = h.length - 1; i >= 0; i -= 1) {
+          if (h[i].date && h[i].date <= toDate) {
+            endIdx = i;
+            break;
+          }
+        }
+
+        if (startIdx < 0 || endIdx < 0 || endIdx <= startIdx) {
+          App.state.rangeAreaM2 = 0;
+          App.state.rangeDiffGeoJSON = { type: "FeatureCollection", features: [] };
+          App.state.rangeUnionPolygon = null;
+          App.state.rangeFromISO = toISODate(fromDate);
+          App.state.rangeToISO = toISODate(toDate);
+          renderRangeSettlements([]);
+          document.getElementById("stat-range-area").textContent = fmtKm2(0);
+          return;
+        }
+
+        const diffPolygons = [];
+        for (let i = startIdx; i < endIdx; i += 1) {
+          const prevData = await getGeoData(h[i].name);
+          const latestData = await getGeoData(h[i + 1].name);
+
+          const prevUnion = unionAll(flattenPolygons(prevData));
+          const latestUnion = unionAll(flattenPolygons(latestData));
+          if (!prevUnion || !latestUnion) continue;
+
+          let diff = null;
+          try {
+            diff = turf.difference(latestUnion, prevUnion);
+          } catch (_) {
+            diff = null;
+          }
+
+          const polys = extractPolygonFeatures(diff);
+          polys.forEach(function (f) {
+            diffPolygons.push(f);
+          });
+        }
+
+        const united = unionFeatures(diffPolygons);
+        App.state.rangeDiffGeoJSON = {
+          type: "FeatureCollection",
+          features: diffPolygons
+        };
+        App.state.rangeUnionPolygon = united || null;
+        App.state.rangeFromISO = toISODate(fromDate);
+        App.state.rangeToISO = toISODate(toDate);
+        App.state.rangeAreaM2 = united ? turf.area(united) : 0;
+        document.getElementById("stat-range-area").textContent = fmtKm2(App.state.rangeAreaM2);
+
+        const settlements = App.state.adminPoints
+          .filter(function (item) {
+            const d = parseInputDate(item.date);
+            return d && d >= fromDate && d <= toDate;
+          })
+          .map(function (item) {
+            return item.name;
+          });
+
+        renderRangeSettlements(settlements);
+      }
+
+      function renderRangeSettlements(names) {
+        const list = document.getElementById("range-settlements");
+        if (!list) return;
+
+        const uniq = Array.from(new Set(names));
+        if (!uniq.length) {
+          list.innerHTML = "<li>Нет событий НП за период</li>";
+          return;
+        }
+
+        list.innerHTML = uniq.map(function (name) {
+          return "<li>" + name + "</li>";
+        }).join("");
+      }
+
+      function updateInfo() {
+        const h = App.state.history;
+        document.getElementById("info-files").textContent = String(h.length);
+
+        if (!h.length) return;
+
+        document.getElementById("info-first").textContent = h[0].date ? h[0].date.toLocaleDateString("ru-RU") : h[0].name;
+        document.getElementById("info-last").textContent = h[h.length - 1].date
+          ? h[h.length - 1].date.toLocaleDateString("ru-RU")
+          : h[h.length - 1].name;
+      }
+
+      function ensureHeatLayer(mapInstance, options) {
+        if (!window.L || !L.heatLayer) {
+          throw new Error("Leaflet.heat не загружен");
+        }
+
+        if (!App.layers.heatEvents) {
+          const cfg = {
+            radius: 25,
+            blur: 15,
+            maxZoom: 17,
+            minOpacity: 0.2,
+            gradient: {
+              0.2: "#1d4ed8",
+              0.45: "#22d3ee",
+              0.7: "#f59e0b",
+              1.0: "#ef4444"
+            },
+            ...(options || {})
+          };
+
+          App.layers.heatEvents = L.heatLayer([], cfg);
+          if (App.layerControl && App.layerControl.addOverlay) {
+            App.layerControl.addOverlay(App.layers.heatEvents, "Тепловая карта событий");
+          }
+        }
+
+        return App.layers.heatEvents;
+      }
+
+      function updateEventHeatLayer(events, mapInstance, options) {
+        const map = mapInstance || App.map;
+        if (!map) return null;
+
+        const heatLayer = ensureHeatLayer(map, options);
+
+        // Очищаем предыдущие точки перед новой отрисовкой.
+        heatLayer.setLatLngs([]);
+
+        const points = Array.isArray(events)
+          ? events.map(function (eventItem) {
+              const lat = Number(eventItem && eventItem.lat);
+              const lng = Number(eventItem && eventItem.lng);
+              const severity = Math.max(0, Number(eventItem && eventItem.severity) || 0);
+              if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+              return [lat, lng, severity];
+            }).filter(Boolean)
+          : [];
+
+        heatLayer.setLatLngs(points);
+
+        // Добавляем слой один раз, дальше видимость управляется Layer Control.
+        if (!App.state.heatLayerInitialized) {
+          heatLayer.addTo(map);
+          App.state.heatLayerInitialized = true;
+        }
+
+        return heatLayer;
+      }
+
+      function setPlayButtonState(isPlaying, playButton) {
+        const btn = playButton || document.getElementById("play-btn");
+        if (!btn) return;
+        btn.textContent = isPlaying ? "Stop" : "Play";
+        btn.classList.toggle("active", Boolean(isPlaying));
+        btn.setAttribute("aria-pressed", String(Boolean(isPlaying)));
+      }
+
+      function stopAnimation(playButton) {
+        if (App.state.animationTimer) {
+          clearInterval(App.state.animationTimer);
+          App.state.animationTimer = null;
+        }
+        App.state.animationPlaying = false;
+        setPlayButtonState(false, playButton);
+      }
+
+      function playAnimation(geojsonByDate, geoJsonLayer, options) {
+        const cfg = options || {};
+        const intervalMs = Number(cfg.intervalMs) > 0 ? Number(cfg.intervalMs) : 1500;
+        const playButton = cfg.playButton || document.getElementById("play-btn");
+
+        const dates = Object.keys(geojsonByDate || {}).sort(function (a, b) {
+          return new Date(a) - new Date(b);
+        });
+
+        if (!dates.length || !geoJsonLayer || !geoJsonLayer.clearLayers || !geoJsonLayer.addData) {
+          stopAnimation(playButton);
+          return;
+        }
+
+        if (App.state.animationPlaying) {
+          stopAnimation(playButton);
+          return;
+        }
+
+        App.state.animationPlaying = true;
+        setPlayButtonState(true, playButton);
+
+        let index = Number(cfg.startIndex) || 0;
+        if (index < 0) index = 0;
+
+        const step = function () {
+          if (index >= dates.length) {
+            stopAnimation(playButton);
+            return;
+          }
+
+          const currentDate = dates[index];
+          const nextGeoJSON = geojsonByDate[currentDate];
+
+          geoJsonLayer.clearLayers();
+          if (nextGeoJSON) {
+            geoJsonLayer.addData(nextGeoJSON);
+          }
+
+          if (typeof cfg.onChartUpdate === "function") {
+            cfg.onChartUpdate(currentDate, nextGeoJSON);
+          } else if (typeof updateChart === "function") {
+            updateChart();
+          }
+
+          if (typeof cfg.onStatsUpdate === "function") {
+            cfg.onStatsUpdate(currentDate, nextGeoJSON);
+          } else if (typeof updateStats === "function") {
+            updateStats();
+          }
+
+          if (typeof cfg.onDateStep === "function") {
+            cfg.onDateStep(currentDate, index);
+          }
+
+          index += 1;
+          if (index >= dates.length) {
+            stopAnimation(playButton);
+          }
+        };
+
+        step();
+        if (App.state.animationPlaying) {
+          App.state.animationTimer = setInterval(step, intervalMs);
+        }
+      }
+
+      async function stepTimelineForward() {
+        const slider = document.getElementById("time-slider");
+        if (!slider) return false;
+
+        const max = Number(slider.max || 0);
+        const current = Number(slider.value || 0);
+        if (current >= max) return false;
+
+        slider.value = String(current + 1);
+        await onSliderChange();
+        return Number(slider.value || 0) < max;
+      }
+
+      async function toggleTimelinePlayback() {
+        const slider = document.getElementById("time-slider");
+        if (!slider) return;
+
+        const speed = Number(App.state.playbackSpeed) > 0 ? Number(App.state.playbackSpeed) : 1;
+        const delayMs = Math.max(300, Math.round(1500 / speed));
+
+        if (App.state.animationPlaying) {
+          stopAnimation(document.getElementById("play-btn"));
+          return;
+        }
+
+        if (Number(slider.max || 0) <= 0) {
+          showToast("Недостаточно дат для анимации", "info");
+          return;
+        }
+
+        if (Number(slider.value || 0) >= Number(slider.max || 0)) {
+          slider.value = "0";
+          await onSliderChange();
+        }
+
+        App.state.animationPlaying = true;
+        App.state.animationStepInProgress = false;
+        setPlayButtonState(true, document.getElementById("play-btn"));
+
+        const loop = async function () {
+          if (!App.state.animationPlaying) return;
+          if (App.state.animationStepInProgress) return;
+
+          App.state.animationStepInProgress = true;
+          try {
+            const hasNext = await stepTimelineForward();
+            if (!hasNext) {
+              stopAnimation(document.getElementById("play-btn"));
+              return;
+            }
+          } catch (err) {
+            console.error("Timeline playback error:", err);
+            stopAnimation(document.getElementById("play-btn"));
+            return;
+          } finally {
+            App.state.animationStepInProgress = false;
+          }
+
+          if (App.state.animationPlaying) {
+            App.state.animationTimer = setTimeout(loop, delayMs);
+          }
+        };
+
+        App.state.animationTimer = setTimeout(loop, delayMs);
+      }
+
+      function updateSliderBounds() {
+        const slider = document.getElementById("time-slider");
+        const h = App.state.history;
+
+        if (h.length < 2) {
+          slider.max = "0";
+          slider.value = "0";
+          document.getElementById("slider-first").textContent = "-";
+          document.getElementById("slider-last").textContent = "-";
+          document.getElementById("slider-date").textContent = "-";
+          document.getElementById("current-date-display").textContent = "-";
+          syncTimelineDateSelectOptions();
+          document.getElementById("slider-fill").style.width = "0%";
+          return;
+        }
+
+        slider.max = String(h.length - 2);
+        slider.value = String(h.length - 2);
+
+        document.getElementById("slider-first").textContent = h[0].date ? h[0].date.toLocaleDateString("ru-RU") : h[0].name;
+        document.getElementById("slider-last").textContent = h[h.length - 1].date
+          ? h[h.length - 1].date.toLocaleDateString("ru-RU")
+          : h[h.length - 1].name;
+
+        syncTimelineDateSelectOptions();
+        syncTimelineDateSelectValue();
+        updateCurrentDateDisplay();
+      }
+
+      function syncTimelineDateSelectOptions() {
+        const select = document.getElementById("timeline-date-select");
+        const h = App.state.history;
+        if (!select) return;
+
+        if (!h || h.length < 2) {
+          select.innerHTML = '<option value="">-</option>';
+          select.value = "";
+          return;
+        }
+
+        select.innerHTML = h.slice(1).map(function (item, idx) {
+          const label = item.date ? item.date.toLocaleDateString("ru-RU") : item.name;
+          return '<option value="' + String(idx) + '">' + label + '</option>';
+        }).join("");
+      }
+
+      function syncTimelineDateSelectValue() {
+        const select = document.getElementById("timeline-date-select");
+        const slider = document.getElementById("time-slider");
+        const h = App.state.history;
+        if (!select || !slider || !h || h.length < 2) return;
+
+        const idx = Math.min(Math.max(0, Number(slider.value) || 0), h.length - 2);
+        select.value = String(idx);
+      }
+
+      function updateCurrentDateDisplay() {
+        const slider = document.getElementById("time-slider");
+        const h = App.state.history;
+        const label = document.getElementById("current-date-display");
+        if (!label || !slider || !h || h.length === 0) return;
+
+        if (h.length === 1) {
+          label.textContent = h[0].date ? h[0].date.toLocaleDateString("ru-RU") : h[0].name;
+          return;
+        }
+
+        const idx = Math.min(Math.max(0, Number(slider.value) || 0), h.length - 2);
+        const latest = h[idx + 1];
+        label.textContent = latest && latest.date ? latest.date.toLocaleDateString("ru-RU") : (latest ? latest.name : "-");
+      }
+
+      function resetToHomeView() {
+        App.map.closePopup();
+        App.map.setView(App.cfg.initialView.center, App.cfg.initialView.zoom, { animate: true });
+      }
+
+      function openInfoModal() {
+        const modal = document.getElementById("info-modal");
+        if (!modal) return;
+        modal.classList.add("is-open");
+        modal.setAttribute("aria-hidden", "false");
+      }
+
+      function closeInfoModal() {
+        const modal = document.getElementById("info-modal");
+        if (!modal) return;
+        modal.classList.remove("is-open");
+        modal.setAttribute("aria-hidden", "true");
+      }
+
+      async function onSliderChange() {
+        const slider = document.getElementById("time-slider");
+        const idx = Number(slider.value);
+        const h = App.state.history;
+
+        App.state.customCompareActive = false;
+        updateCurrentDateDisplay();
+        syncTimelineDateSelectValue();
+
+        if (App.state.isUpdating) return;
+
+        if (h.length === 1) {
+          App.state.currentIndex = 0;
+          App.state.currentDateKey = h[0].name;
+          document.getElementById("slider-date").textContent = h[0].date ? h[0].date.toLocaleDateString("ru-RU") : h[0].name;
+          document.getElementById("slider-fill").style.width = "100%";
+          updateCurrentDateDisplay();
+          await renderSingleSource(h[0].name);
+          App.state.frontLengthKm = 0;
+          App.state.newNpCount = 0;
+          App.state.pace7dKm2PerDay = 0;
+          App.state.frontTrendDelta = 0;
+          App.state.newNpTrendDelta = 0;
+          App.state.paceTrendDelta = 0;
+          updateStats();
+          updateURL();
+          return;
+        }
+
+        if (h.length < 2 || idx < 0 || idx >= h.length - 1) return;
+
+        App.state.currentIndex = idx;
+        const latest = h[idx + 1];
+        App.state.currentDateKey = latest.name;
+        App.state.markerFilterMode = "timeline";
+        App.state.activeMarkerDateISO = latest && latest.date ? toISODate(latest.date) : "";
+        document.getElementById("slider-date").textContent = latest.date ? latest.date.toLocaleDateString("ru-RU") : latest.name;
+        updateCurrentDateDisplay();
+        syncTimelineDateSelectValue();
+
+        const denominator = Math.max(1, h.length - 2);
+        document.getElementById("slider-fill").style.width = ((idx / denominator) * 100).toFixed(2) + "%";
+
+        await compareFiles(h[idx].name, h[idx + 1].name);
+        await updateTrendDashboard(idx);
+        rebuildVisibleAdminMarkers();
+        renderEventTimeline();
+        updateStats();
+        updateURL();
+      }
+
+      async function compareSelectedDateRange() {
+        const fromInput = document.getElementById("range-from");
+        const toInput = document.getElementById("range-to");
+        if (!fromInput || !toInput) return;
+
+        let fromDate = parseInputDate(fromInput.value);
+        let toDate = parseInputDate(toInput.value);
+        if (!fromDate || !toDate) {
+          showToast("Выберите корректные даты С/По", "info");
+          return;
+        }
+
+        if (fromDate > toDate) {
+          const tmp = fromDate;
+          fromDate = toDate;
+          toDate = tmp;
+          fromInput.value = toISODate(fromDate);
+          toInput.value = toISODate(toDate);
+        }
+
+        const h = App.state.history;
+        if (!h || h.length < 2) {
+          showToast("Недостаточно данных для сравнения", "info");
+          return;
+        }
+
+        const startIdx = h.findIndex(function (item) {
+          return item.date && item.date >= fromDate;
+        });
+
+        let endIdx = -1;
+        for (let i = h.length - 1; i >= 0; i -= 1) {
+          if (h[i].date && h[i].date <= toDate) {
+            endIdx = i;
+            break;
+          }
+        }
+
+        if (startIdx < 0 || endIdx < 0 || endIdx <= startIdx) {
+          showToast("Для выбранного диапазона нет пары дат", "info");
+          return;
+        }
+
+        stopAnimation(document.getElementById("play-btn"));
+
+        const compareFrom = h[startIdx];
+        const compareTo = h[endIdx];
+
+        await compareFiles(compareFrom.name, compareTo.name);
+
+        const slider = document.getElementById("time-slider");
+        const sliderIdx = Math.max(0, Math.min(endIdx - 1, h.length - 2));
+        if (slider) {
+          slider.value = String(sliderIdx);
+          const denominator = Math.max(1, h.length - 2);
+          document.getElementById("slider-fill").style.width = ((sliderIdx / denominator) * 100).toFixed(2) + "%";
+        }
+
+        App.state.currentIndex = sliderIdx;
+        App.state.currentDateKey = compareTo.name;
+        App.state.customCompareActive = true;
+        App.state.markerFilterMode = "timeline";
+        App.state.activeMarkerDateISO = compareTo.date ? toISODate(compareTo.date) : "";
+
+        const fromLabel = compareFrom.date ? compareFrom.date.toLocaleDateString("ru-RU") : compareFrom.name;
+        const toLabel = compareTo.date ? compareTo.date.toLocaleDateString("ru-RU") : compareTo.name;
+        document.getElementById("slider-date").textContent = fromLabel + " -> " + toLabel;
+
+        syncTimelineDateSelectValue();
+        updateCurrentDateDisplay();
+        await updateTrendDashboard(sliderIdx);
+        rebuildVisibleAdminMarkers();
+        renderEventTimeline();
+        updateStats();
+        updateURL();
+      }
+
+      async function renderSingleSource(fileName) {
+        App.state.isUpdating = true;
+        const center = App.map.getCenter();
+        const zoom = App.map.getZoom();
+
+        try {
+          const data = await getGeoData(fileName);
+          const incomingLatest = createFrontLayer(data, "#f97316", null);
+          const incomingPrev = createFrontLayer({ type: "FeatureCollection", features: [] }, "#34d399", "5 5");
+          const incomingChange = createChangeLayer(null);
+
+          incomingPrev.addTo(App.map);
+          incomingLatest.addTo(App.map);
+          incomingChange.addTo(App.map);
+
+          if (App.layers.basePrev) App.map.removeLayer(App.layers.basePrev);
+          if (App.layers.baseLatest) App.map.removeLayer(App.layers.baseLatest);
+          if (App.layers.change) App.map.removeLayer(App.layers.change);
+
+          App.layers.basePrev = incomingPrev;
+          App.layers.baseLatest = incomingLatest;
+          App.layers.change = incomingChange;
+
+          syncRegionalGeoSources(data);
+
+          App.state.lastChangeFeature = null;
+          App.state.changeAreaM2 = 0;
+
+          App.map.setView(center, zoom, { animate: false });
+          updateStats();
+        } catch (err) {
+          console.error("renderSingleSource error:", err);
+        } finally {
+          App.state.isUpdating = false;
+        }
+      }
+
+      async function compareFiles(prevFile, latestFile) {
+        App.state.isUpdating = true;
+
+        const center = App.map.getCenter();
+        const zoom = App.map.getZoom();
+
+        try {
+          const [prevData, latestData] = await Promise.all([getGeoData(prevFile), getGeoData(latestFile)]);
+
+          const prevUnion = unionAll(flattenPolygons(prevData));
+          const latestUnion = unionAll(flattenPolygons(latestData));
+
+          let diff = null;
+          if (latestUnion && prevUnion) {
+            try {
+              diff = turf.difference(latestUnion, prevUnion);
+            } catch (_) {
+              diff = null;
+            }
+          }
+
+          const incomingPrev = createFrontLayer(prevData, "#34d399", "5 5");
+          const incomingLatest = createFrontLayer(latestData, "#f97316", null);
+          const incomingChange = createChangeLayer(diff || null);
+
+          incomingPrev.addTo(App.map);
+          incomingLatest.addTo(App.map);
+          incomingChange.addTo(App.map);
+
+          if (App.layers.basePrev) App.map.removeLayer(App.layers.basePrev);
+          if (App.layers.baseLatest) App.map.removeLayer(App.layers.baseLatest);
+          if (App.layers.change) App.map.removeLayer(App.layers.change);
+
+          App.layers.basePrev = incomingPrev;
+          App.layers.baseLatest = incomingLatest;
+          App.layers.change = incomingChange;
+
+          syncRegionalGeoSources(latestData);
+
+          App.state.lastChangeFeature = diff;
+          App.state.changeAreaM2 = diff ? turf.area(diff) : 0;
+          App.state.areaSeriesKm2.push(Number((App.state.changeAreaM2 / 1000000).toFixed(3)));
+          if (App.state.areaSeriesKm2.length > 24) App.state.areaSeriesKm2.shift();
+
+          App.map.setView(center, zoom, { animate: false });
+          updateStats();
+        } catch (err) {
+          console.error("compareFiles error:", err);
+          App.map.setView(center, zoom, { animate: false });
+        } finally {
+          App.state.isUpdating = false;
+        }
+      }
+
+      function updateStats() {
+        document.getElementById("stat-area").textContent = fmtKm2(App.state.changeAreaM2 || 0);
+
+        const totalFreed = App.state.adminPoints.filter(function (point) {
+          return point.type === "Освобождение";
+        }).length;
+
+        const today = todayISO();
+        const todayFreed = App.state.adminPoints.filter(function (point) {
+          return point.type === "Освобождение" && point.date === today;
+        }).length;
+
+        document.getElementById("stat-freed-total").textContent = String(totalFreed);
+        document.getElementById("stat-freed-today").textContent = String(todayFreed);
+
+        document.getElementById("stat-range-area").textContent = fmtKm2(App.state.rangeAreaM2 || 0);
+        document.getElementById("stat-front-length").textContent = fmtKm(App.state.frontLengthKm || 0);
+        document.getElementById("stat-new-np").textContent = String(App.state.newNpCount || 0);
+        document.getElementById("stat-pace-7d").textContent = Number(App.state.pace7dKm2PerDay || 0).toFixed(2) + " км²/день";
+
+        renderTrendArrow("trend-front", App.state.frontTrendDelta || 0);
+        renderTrendArrow("trend-new-np", App.state.newNpTrendDelta || 0);
+        renderTrendArrow("trend-pace-7d", App.state.paceTrendDelta || 0);
+
+        calculateRegionalProgress(App.state.controlledZonesGeoJSON, App.cfg.regionBoundaries, {
+          containerId: "regional-progress-list",
+          cacheKey: App.state.currentDateKey || ""
+        });
+
+        updateChart();
+      }
+
+      function updateChart() {
+        const h = App.state.history;
+        if (h.length < 2) return;
+
+        const labels = [];
+        for (let i = 1; i < h.length; i += 1) {
+          const date = h[i].date;
+          labels.push(date ? date.toLocaleDateString("ru-RU", { day: "numeric", month: "short" }) : h[i].name);
+        }
+
+        const data = App.state.areaSeriesKm2.length === labels.length
+          ? App.state.areaSeriesKm2
+          : labels.map(function () {
+              return 0;
+            });
+
+        const ctx = document.getElementById("trend-chart");
+        if (!ctx) return;
+
+        if (!App.chart) {
+          App.chart = new Chart(ctx, {
+            type: "line",
+            data: {
+              labels: labels,
+              datasets: [
+                {
+                  data: data,
+                  borderColor: "#2dd4bf",
+                  backgroundColor: "rgba(45, 212, 191, 0.15)",
+                  borderWidth: 2,
+                  fill: true,
+                  tension: 0.3,
+                  pointRadius: 2
+                }
+              ]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend: { display: false }
+              },
+              scales: {
+                x: {
+                  grid: { display: false },
+                  ticks: { color: "#9aa7bb", maxTicksLimit: 6 }
+                },
+                y: {
+                  beginAtZero: true,
+                  grid: { color: "rgba(255,255,255,0.08)" },
+                  ticks: { color: "#9aa7bb" }
+                }
+              }
+            }
+          });
+          return;
+        }
+
+        App.chart.data.labels = labels;
+        App.chart.data.datasets[0].data = data;
+        App.chart.update();
+      }
+
+      function getChartSeriesInput() {
+        if (App.chart && App.chart.data && App.chart.data.datasets && App.chart.data.datasets[0]) {
+          const dataset = App.chart.data.datasets[0].data || [];
+          return dataset.map(function (value) {
+            return Number(value || 0);
+          });
+        }
+        return App.state.areaSeriesKm2.slice();
+      }
+
+      function getCurrentStatsSnapshot() {
+        const totalFreed = App.state.adminPoints.filter(function (point) {
+          return point.type === "Освобождение";
+        }).length;
+
+        return {
+          totalFreed: totalFreed,
+          totalAreaM2: App.state.rangeAreaM2 || 0,
+          frontLengthKm: App.state.frontLengthKm || 0,
+          currentPaceKm2PerDay: App.state.pace7dKm2PerDay || 0
+        };
+      }
+
+      function getDateRangeSelection() {
+        const fromInput = document.getElementById("range-from");
+        const toInput = document.getElementById("range-to");
+
+        const fromDate = parseInputDate(fromInput && fromInput.value ? fromInput.value : App.state.rangeFromISO);
+        const toDate = parseInputDate(toInput && toInput.value ? toInput.value : App.state.rangeToISO);
+
+        return {
+          fromDate: fromDate,
+          toDate: toDate,
+          fromISO: fromDate ? toISODate(fromDate) : "",
+          toISO: toDate ? toISODate(toDate) : ""
+        };
+      }
+
+      function getTrendRowsForPeriod(chartSeries, period) {
+        const rows = [];
+        const h = App.state.history;
+
+        for (let i = 1; i < h.length; i += 1) {
+          const dateObj = h[i].date;
+          if (!dateObj) continue;
+          if (period.fromDate && dateObj < period.fromDate) continue;
+          if (period.toDate && dateObj > period.toDate) continue;
+
+          const areaKm2 = Number(chartSeries[i - 1] || 0);
+          rows.push({
+            date: toISODate(dateObj),
+            areaKm2: Number(areaKm2.toFixed(3))
+          });
+        }
+
+        return rows;
+      }
+
+      function getSettlementsInChangeZone(changedGeoJSON, period) {
+        const polygons = extractPolygonFeatures(changedGeoJSON);
+        const united = unionFeatures(polygons);
+
+        const inRange = App.state.adminPoints.filter(function (point) {
+          const d = parseInputDate(point.date);
+          if (period.fromDate && (!d || d < period.fromDate)) return false;
+          if (period.toDate && (!d || d > period.toDate)) return false;
+          return true;
+        });
+
+        if (!united) {
+          return inRange.map(function (point) {
+            return {
+              id: point.id,
+              name: point.name,
+              type: point.type,
+              date: point.date,
+              source: point.source || ""
+            };
+          });
+        }
+
+        return inRange.filter(function (point) {
+          try {
+            const p = turf.point([point.lng, point.lat]);
+            return turf.booleanPointInPolygon(p, united);
+          } catch (_) {
+            return false;
+          }
+        }).map(function (point) {
+          return {
+            id: point.id,
+            name: point.name,
+            type: point.type,
+            date: point.date,
+            source: point.source || ""
+          };
+        });
+      }
+
+      function buildDashboardExportData(params) {
+        const changedGeoJSON = params.changedGeoJSON || { type: "FeatureCollection", features: [] };
+        const chartSeries = Array.isArray(params.chartSeries) ? params.chartSeries : [];
+        const stats = params.stats || {};
+        const period = params.period || { fromDate: null, toDate: null, fromISO: "", toISO: "" };
+
+        const changedPolygons = extractPolygonFeatures(changedGeoJSON);
+        const trendRows = getTrendRowsForPeriod(chartSeries, period);
+        const settlements = getSettlementsInChangeZone(changedGeoJSON, period);
+
+        const avgPace = trendRows.length
+          ? trendRows.reduce(function (sum, row) {
+              return sum + Number(row.areaKm2 || 0);
+            }, 0) / trendRows.length
+          : Number(stats.currentPaceKm2PerDay || 0);
+
+        const geographyRows = changedPolygons.map(function (feature, idx) {
+          let areaM2 = 0;
+          try {
+            areaM2 = turf.area(feature) || 0;
+          } catch (_) {
+            areaM2 = 0;
+          }
+
+          const featureId = feature.id != null
+            ? String(feature.id)
+            : (feature.properties && feature.properties.id != null
+              ? String(feature.properties.id)
+              : "poly_" + String(idx + 1));
+
+          return {
+            id: featureId,
+            areaKm2: Number((areaM2 / 1000000).toFixed(3))
+          };
+        });
+
+        return {
+          generatedAt: new Date().toISOString(),
+          period: {
+            from: period.fromISO,
+            to: period.toISO
+          },
+          summary: {
+            totalFreed: Number(stats.totalFreed || 0),
+            totalAreaKm2: Number(((stats.totalAreaM2 || 0) / 1000000).toFixed(2)),
+            frontLengthKm: Math.round(Number(stats.frontLengthKm || 0)),
+            averagePaceKm2PerDay: Number(avgPace.toFixed(2))
+          },
+          geography: {
+            polygonCount: geographyRows.length,
+            polygons: geographyRows
+          },
+          trends: {
+            source: "Chart.js",
+            byDay: trendRows
+          },
+          settlements: settlements
+        };
+      }
+
+      function buildDashboardReport() {
+        const payload = buildDashboardExportData({
+          changedGeoJSON: App.state.rangeDiffGeoJSON,
+          chartSeries: getChartSeriesInput(),
+          stats: getCurrentStatsSnapshot(),
+          period: getDateRangeSelection()
+        });
+
+        return payload;
+      }
+
+      function buildDashboardExcelProfile(report) {
+        return {
+          profile: "excel",
+          generatedAt: report.generatedAt,
+          period: report.period,
+          summaryRows: [
+            { metric: "Всего освобождено", value: report.summary.totalFreed, unit: "шт" },
+            { metric: "Суммарная площадь", value: report.summary.totalAreaKm2, unit: "км2" },
+            { metric: "Средний темп", value: report.summary.averagePaceKm2PerDay, unit: "км2/день" },
+            { metric: "Длина фронта", value: report.summary.frontLengthKm, unit: "км" }
+          ],
+          geographyRows: report.geography.polygons.map(function (polygon) {
+            return {
+              polygonId: polygon.id,
+              areaKm2: polygon.areaKm2
+            };
+          }),
+          trendRows: report.trends.byDay.map(function (row) {
+            return {
+              date: row.date,
+              areaKm2: row.areaKm2
+            };
+          }),
+          settlementRows: report.settlements.map(function (item) {
+            return {
+              settlementId: item.id,
+              name: item.name,
+              type: item.type,
+              date: item.date,
+              source: item.source
+            };
+          })
+        };
+      }
+
+      function buildDashboardPdfProfile(report) {
+        return {
+          profile: "pdf",
+          title: "Отчет по изменениям на карте CVO",
+          generatedAt: report.generatedAt,
+          period: {
+            from: report.period.from,
+            to: report.period.to,
+            label: report.period.from + " - " + report.period.to
+          },
+          sections: [
+            {
+              id: "summary",
+              title: "Сводка",
+              items: [
+                { label: "Всего освобождено", value: String(report.summary.totalFreed) },
+                { label: "Суммарная площадь", value: String(report.summary.totalAreaKm2) + " км2" },
+                { label: "Средний темп", value: String(report.summary.averagePaceKm2PerDay) + " км2/день" },
+                { label: "Длина фронта", value: String(report.summary.frontLengthKm) + " км" }
+              ]
+            },
+            {
+              id: "geography",
+              title: "География",
+              table: report.geography.polygons.map(function (polygon) {
+                return {
+                  id: polygon.id,
+                  areaKm2: polygon.areaKm2
+                };
+              })
+            },
+            {
+              id: "trends",
+              title: "Тренды",
+              chartSeries: report.trends.byDay.map(function (row) {
+                return {
+                  date: row.date,
+                  areaKm2: row.areaKm2
+                };
+              })
+            },
+            {
+              id: "settlements",
+              title: "Список НП",
+              items: report.settlements.map(function (item) {
+                return {
+                  name: item.name,
+                  type: item.type,
+                  date: item.date,
+                  source: item.source
+                };
+              })
+            }
+          ]
+        };
+      }
+
+      function buildDashboardExportBundle() {
+        const report = buildDashboardReport();
+        return {
+          generatedAt: report.generatedAt,
+          period: report.period,
+          rawReport: report,
+          excelProfile: buildDashboardExcelProfile(report),
+          pdfProfile: buildDashboardPdfProfile(report)
+        };
+      }
+
+      function buildReport() {
+        const markerFeatures = App.state.adminPoints.map(function (meta) {
+          return {
+            type: "Feature",
+            properties: { ...(meta.properties || {}) },
+            geometry: {
+              type: "Point",
+              coordinates: [meta.lng, meta.lat]
+            }
+          };
+        });
+
+        return {
+          generatedAt: new Date().toISOString(),
+          currentIndex: App.state.currentIndex,
+          changeAreaM2: App.state.changeAreaM2,
+          markers: App.state.adminPoints.slice(),
+          markersGeoJSON: {
+            type: "FeatureCollection",
+            features: markerFeatures
+          }
+        };
+      }
+
+      function downloadJSON(payload, filename) {
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+      }
+
+      function exportDashboardToExcel(bundle, filename) {
+        if (!window.XLSX) {
+          throw new Error("XLSX library is not loaded");
+        }
+
+        const excel = bundle.excelProfile;
+        const wb = XLSX.utils.book_new();
+
+        const summarySheet = XLSX.utils.json_to_sheet(excel.summaryRows);
+        XLSX.utils.book_append_sheet(wb, summarySheet, "Summary");
+
+        const geographyRows = excel.geographyRows.length
+          ? excel.geographyRows
+          : [{ polygonId: "-", areaKm2: 0 }];
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(geographyRows), "Geography");
+
+        const trendRows = excel.trendRows.length
+          ? excel.trendRows
+          : [{ date: "-", areaKm2: 0 }];
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(trendRows), "Trends");
+
+        const settlementRows = excel.settlementRows.length
+          ? excel.settlementRows
+          : [{ settlementId: "-", name: "-", type: "-", date: "-", source: "" }];
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(settlementRows), "Settlements");
+
+        XLSX.writeFile(wb, filename);
+      }
+
+      function exportDashboardToPdf(bundle, filename) {
+        if (!window.pdfMake) {
+          throw new Error("pdfmake library is not loaded");
+        }
+
+        const pdf = bundle.pdfProfile;
+        const summary = pdf.sections.find(function (s) {
+          return s.id === "summary";
+        });
+        const geography = pdf.sections.find(function (s) {
+          return s.id === "geography";
+        });
+        const trends = pdf.sections.find(function (s) {
+          return s.id === "trends";
+        });
+        const settlements = pdf.sections.find(function (s) {
+          return s.id === "settlements";
+        });
+
+        const summaryRows = (summary && summary.items ? summary.items : []).map(function (item) {
+          return [{ text: item.label, margin: [0, 2, 0, 2] }, { text: item.value, bold: true, margin: [0, 2, 0, 2] }];
+        });
+
+        const geographyRows = (geography && geography.table ? geography.table : []).map(function (row) {
+          return [String(row.id), String(row.areaKm2)];
+        });
+
+        const trendRows = (trends && trends.chartSeries ? trends.chartSeries : []).map(function (row) {
+          return [row.date, String(row.areaKm2)];
+        });
+
+        const settlementRows = (settlements && settlements.items ? settlements.items : []).map(function (item) {
+          return [item.name || "-", item.type || "-", item.date || "-", item.source || "-"];
+        });
+
+        const makeSectionTitle = function (title) {
+          return {
+            text: title,
+            style: "sectionTitle",
+            margin: [0, 14, 0, 8]
+          };
+        };
+
+        const docDefinition = {
+          pageSize: "A4",
+          pageMargins: [36, 36, 36, 36],
+          content: [
+            { text: "Отчет CVO Dashboard", style: "title" },
+            { text: "Период: " + (pdf.period.label || "-"), style: "meta" },
+            { text: "Сформирован: " + (pdf.generatedAt || "-"), style: "meta", margin: [0, 0, 0, 8] },
+
+            makeSectionTitle("Сводка"),
+            {
+              table: {
+                widths: ["*", 180],
+                body: [
+                  [
+                    { text: "Показатель", style: "tableHead" },
+                    { text: "Значение", style: "tableHead" }
+                  ]
+                ].concat(summaryRows.length ? summaryRows : [["Нет данных", "-"]])
+              },
+              layout: "lightHorizontalLines"
+            },
+
+            makeSectionTitle("География"),
+            {
+              table: {
+                widths: ["*", 120],
+                body: [
+                  [
+                    { text: "Polygon ID", style: "tableHead" },
+                    { text: "Area km2", style: "tableHead" }
+                  ]
+                ].concat(geographyRows.length ? geographyRows : [["-", "0"]])
+              },
+              layout: "lightHorizontalLines"
+            },
+
+            makeSectionTitle("Тренды по дням"),
+            {
+              table: {
+                widths: [140, 120],
+                body: [
+                  [
+                    { text: "Дата", style: "tableHead" },
+                    { text: "Площадь (км2)", style: "tableHead" }
+                  ]
+                ].concat(trendRows.length ? trendRows : [["-", "0"]])
+              },
+              layout: "lightHorizontalLines"
+            },
+
+            makeSectionTitle("Список НП в зоне изменений"),
+            {
+              table: {
+                widths: [110, 90, 80, "*"],
+                body: [
+                  [
+                    { text: "НП", style: "tableHead" },
+                    { text: "Тип", style: "tableHead" },
+                    { text: "Дата", style: "tableHead" },
+                    { text: "Источник", style: "tableHead" }
+                  ]
+                ].concat(settlementRows.length ? settlementRows : [["-", "-", "-", "-"]])
+              },
+              layout: "lightHorizontalLines"
+            }
+          ],
+          styles: {
+            title: {
+              fontSize: 18,
+              bold: true,
+              color: "#0f172a"
+            },
+            meta: {
+              fontSize: 10,
+              color: "#334155"
+            },
+            sectionTitle: {
+              fontSize: 13,
+              bold: true,
+              color: "#0f172a"
+            },
+            tableHead: {
+              fillColor: "#2563eb",
+              color: "#ffffff",
+              bold: true,
+              fontSize: 10
+            }
+          },
+          defaultStyle: {
+            fontSize: 9
+          }
+        };
+
+        window.pdfMake.createPdf(docDefinition).download(filename);
+      }
+
+      function saveMarkerMeta(marker, meta) {
+        marker.options.meta = meta;
+        marker.bindTooltip("<b>" + meta.name + "</b>", { sticky: true });
+
+        const safeSource = sanitizeURL(meta.source);
+        const sourceBlock = safeSource
+          ? '<a class="popup-source-btn" href="' + safeSource + '" target="_blank" rel="noopener noreferrer">Источник</a>'
+          : "";
+        const popup =
+          "<b>" + meta.name + "</b><br>" +
+          '<div style="margin-top:4px">' + (meta.description || "Без описания") + "</div>" +
+          sourceBlock;
+
+        marker.bindPopup(popup);
+
+        marker.feature = marker.feature || marker.toGeoJSON();
+        marker.feature.properties = {
+          ...meta.properties
+        };
+      }
+
+      function showMarkerEditor(marker, onSave, onCancel) {
+        const token = "editor_" + Date.now() + "_" + Math.floor(Math.random() * 100000);
+        App.state.pendingMarkerEditors[token] = { marker: marker, onSave: onSave, onCancel: onCancel };
+
+        const popupHtml =
+          '<div class="popup-form">' +
+          '<input id="marker-name-' + token + '" class="marker-name" type="text" placeholder="Название НП" required />' +
+          '<textarea id="marker-description-' + token + '" class="marker-description" placeholder="Описание" rows="3" required></textarea>' +
+          '<input id="marker-source-' + token + '" class="marker-source" type="url" placeholder="Ссылка на источник (https://...)" required />' +
+          '<select id="marker-type-' + token + '" class="marker-type">' +
+          '<option value="Освобождение">Освобождение</option>' +
+          '<option value="Бои">Бои</option>' +
+          '<option value="Контроль">Контроль</option>' +
+          "</select>" +
+          '<input id="marker-date-' + token + '" class="marker-date" type="date" value="' +
+          todayISO() +
+          '" />' +
+          '<div class="row">' +
+          '<button class="btn marker-save" data-editor-token="' + token + '" type="button">Сохранить</button>' +
+          '<button class="btn marker-cancel" data-editor-token="' + token + '" type="button">Отмена</button>' +
+          "</div>" +
+          "</div>";
+
+        marker.once("popupclose", function () {
+          if (App.state.pendingMarkerEditors[token]) {
+            delete App.state.pendingMarkerEditors[token];
+          }
+        });
+
+        marker.bindPopup(popupHtml, { closeButton: true, maxWidth: 260 });
+        marker.openPopup();
+      }
+
+      function initPopupEditorDelegation() {
+        document.addEventListener("click", function (event) {
+          const saveBtn = event.target.closest(".marker-save[data-editor-token]");
+          const cancelBtn = event.target.closest(".marker-cancel[data-editor-token]");
+
+          const actionBtn = saveBtn || cancelBtn;
+          if (!actionBtn) return;
+
+          const token = actionBtn.getAttribute("data-editor-token");
+          if (!token) return;
+
+          const editor = App.state.pendingMarkerEditors[token];
+          if (!editor || !editor.marker) return;
+
+          if (cancelBtn) {
+            editor.onCancel();
+            delete App.state.pendingMarkerEditors[token];
+            return;
+          }
+
+          const nameInput = document.getElementById("marker-name-" + token);
+          const descInput = document.getElementById("marker-description-" + token);
+          const sourceInput = document.getElementById("marker-source-" + token);
+          const typeInput = document.getElementById("marker-type-" + token);
+          const dateInput = document.getElementById("marker-date-" + token);
+
+          const name = (nameInput && nameInput.value.trim()) || "";
+          const description = (descInput && descInput.value.trim()) || "";
+          const source = (sourceInput && sourceInput.value.trim()) || "";
+          const safeSource = sanitizeURL(source);
+
+          if (!name || !description || !safeSource) {
+            showToast("Заполните все поля и корректный URL", "info");
+            return;
+          }
+
+          const markerType = (typeInput && typeInput.value) || "Освобождение";
+          const markerDate = (dateInput && dateInput.value) || todayISO();
+
+          const meta = {
+            id: "m_" + Date.now(),
+            name: name,
+            type: markerType,
+            date: markerDate,
+            description: description,
+            source: safeSource,
+            lat: editor.marker.getLatLng().lat,
+            lng: editor.marker.getLatLng().lng,
+            properties: {
+              name: name,
+              type: markerType,
+              date: markerDate,
+              description: description,
+              source: safeSource
+            }
+          };
+
+          editor.onSave(meta);
+          delete App.state.pendingMarkerEditors[token];
+        });
+      }
+
+      function setupAdminEvents() {
+        App.map.on(L.Draw.Event.CREATED, function (event) {
+          if (!App.state.adminEnabled || event.layerType !== "marker") return;
+
+          const marker = event.layer;
+          App.layers.adminPoints.addLayer(marker);
+
+          showMarkerEditor(
+            marker,
+            function (meta) {
+              App.state.adminPoints.push(meta);
+              saveAdminPointsToStorage();
+              rebuildVisibleAdminMarkers();
+              const visibleMarker = App.state.markerById[meta.id];
+              if (visibleMarker) {
+                animateMarkerPulse(visibleMarker);
+              }
+              marker.closePopup();
+              updateStats();
+              renderEventTimeline();
+              updateRangeAnalytics();
+              updateTrendDashboard(App.state.currentIndex).then(updateStats);
+              showToast("Событие сохранено", "success");
+              updateURL();
+            },
+            function () {
+              App.layers.adminPoints.removeLayer(marker);
+              showToast("Создание события отменено", "info");
+            }
+          );
+        });
+
+        App.map.on(L.Draw.Event.EDITED, function (event) {
+          event.layers.eachLayer(function (layer) {
+            if (!layer.options.meta) return;
+            const m = layer.options.meta;
+            m.lat = layer.getLatLng().lat;
+            m.lng = layer.getLatLng().lng;
+
+            const idx = App.state.adminPoints.findIndex(function (item) {
+              return item.id === m.id;
+            });
+            if (idx >= 0) App.state.adminPoints[idx] = m;
+            saveAdminPointsToStorage();
+
+            layer.feature = layer.feature || layer.toGeoJSON();
+            layer.feature.properties = {
+              ...(m.properties || {}),
+              lat: m.lat,
+              lng: m.lng
+            };
+          });
+
+          updateURL();
+        });
+
+        App.map.on(L.Draw.Event.DELETED, function (event) {
+          event.layers.eachLayer(function (layer) {
+            if (!layer.options.meta) return;
+            const id = layer.options.meta.id;
+            App.state.adminPoints = App.state.adminPoints.filter(function (item) {
+              return item.id !== id;
+            });
+            if (App.state.markerById[id]) {
+              delete App.state.markerById[id];
+            }
+          });
+          saveAdminPointsToStorage();
+          rebuildVisibleAdminMarkers();
+          updateStats();
+          renderEventTimeline();
+          updateRangeAnalytics();
+          updateTrendDashboard(App.state.currentIndex).then(updateStats);
+          showToast("Событие удалено", "info");
+          updateURL();
+        });
+      }
+
+      function toggleAdminMode() {
+        const button = document.getElementById("admin-toggle");
+        App.state.adminEnabled = !App.state.adminEnabled;
+
+        if (App.state.adminEnabled) {
+          if (!App.drawControl) {
+            App.drawControl = new L.Control.Draw({
+              position: "topright",
+              draw: {
+                marker: true,
+                polygon: false,
+                polyline: false,
+                rectangle: false,
+                circle: false,
+                circlemarker: false
+              },
+              edit: {
+                featureGroup: App.layers.adminPoints,
+                edit: true,
+                remove: true
+              }
+            });
+          }
+          App.map.addControl(App.drawControl);
+          button.classList.add("active");
+          showToast("Режим редактирования включен", "info");
+        } else {
+          if (App.drawControl) {
+            App.map.removeControl(App.drawControl);
+          }
+          button.classList.remove("active");
+          showToast("Режим редактирования выключен", "info");
+        }
+
+        syncMarkerPresentation();
+      }
+
+      function toggleFocusMode() {
+        App.state.focusMode = !App.state.focusMode;
+        document.body.classList.toggle("focus-mode", App.state.focusMode);
+        document.getElementById("focus-toggle").classList.toggle("active", App.state.focusMode);
+      }
+
+      async function refreshDataAndStayOnLatest() {
+        await loadFilesIndex();
+        const slider = document.getElementById("time-slider");
+        slider.value = slider.max;
+        await onSliderChange();
+      }
+
+      async function initApp() {
+        initMap();
+        loadAdminPointsFromStorage();
+        setupAdminEvents();
+        initPanelVisibilityControls();
+        initPopupEditorDelegation();
+
+        await refreshDataAndStayOnLatest();
+
+        const urlState = loadStateFromURL();
+        if (urlState.date) {
+          const targetIndex = App.state.history.findIndex(function (item) {
+            return item.name === urlState.date;
+          });
+          if (targetIndex > 0) {
+            const slider = document.getElementById("time-slider");
+            slider.value = String(targetIndex - 1);
+            await onSliderChange();
+          }
+        }
+
+        renderEventTimeline();
+        App.state.markerFilterMode = "today";
+        App.state.activeMarkerDateISO = todayISO();
+        rebuildVisibleAdminMarkers();
+        syncMarkerPresentation();
+        updateRangeAnalytics();
+
+        document.getElementById("time-slider").addEventListener("input", function () {
+          if (App.state.animationPlaying) {
+            stopAnimation(document.getElementById("play-btn"));
+          }
+          updateCurrentDateDisplay();
+          onSliderChange();
+        });
+
+        document.getElementById("play-btn").addEventListener("click", function () {
+          toggleTimelinePlayback();
+        });
+
+        document.getElementById("play-speed").addEventListener("change", function (event) {
+          const val = Number(event.target && event.target.value);
+          App.state.playbackSpeed = Number.isFinite(val) && val > 0 ? val : 1;
+
+          if (App.state.animationPlaying) {
+            // Применяем новую скорость сразу: перезапускаем цикл с текущей позиции.
+            stopAnimation(document.getElementById("play-btn"));
+            toggleTimelinePlayback();
+          }
+        });
+
+        document.getElementById("timeline-date-select").addEventListener("change", function (event) {
+          const slider = document.getElementById("time-slider");
+          if (!slider) return;
+
+          if (App.state.animationPlaying) {
+            stopAnimation(document.getElementById("play-btn"));
+          }
+
+          const val = Number(event.target && event.target.value);
+          if (!Number.isFinite(val)) return;
+
+          slider.value = String(val);
+          onSliderChange();
+        });
+
+        document.getElementById("home-control").addEventListener("click", function () {
+          resetToHomeView();
+        });
+
+        document.getElementById("help-btn").addEventListener("click", function () {
+          openInfoModal();
+        });
+
+        document.getElementById("info-modal-close").addEventListener("click", function () {
+          closeInfoModal();
+        });
+
+        document.getElementById("info-modal").addEventListener("click", function (event) {
+          if (event.target.id === "info-modal") {
+            closeInfoModal();
+          }
+        });
+
+        document.addEventListener("keydown", function (event) {
+          if (event.key === "Escape") {
+            closeInfoModal();
+          }
+        });
+
+        document.getElementById("range-apply").addEventListener("click", function () {
+          compareSelectedDateRange();
+          updateRangeAnalytics();
+        });
+
+        document.getElementById("range-from").addEventListener("change", function () {
+          if (App.state.animationPlaying) {
+            stopAnimation(document.getElementById("play-btn"));
+          }
+          updateRangeAnalytics();
+        });
+
+        document.getElementById("range-to").addEventListener("change", function () {
+          if (App.state.animationPlaying) {
+            stopAnimation(document.getElementById("play-btn"));
+          }
+          updateRangeAnalytics();
+        });
+
+        document.getElementById("timeline-events").addEventListener("click", function (event) {
+          const target = event.target.closest(".event-pill");
+          if (!target) return;
+          const markerId = target.getAttribute("data-marker-id");
+          if (!markerId) return;
+
+          let marker = App.state.markerById[markerId];
+          if (!marker) {
+            const meta = App.state.adminPoints.find(function (item) {
+              return item.id === markerId;
+            });
+            if (!meta) return;
+            App.state.markerFilterMode = "timeline";
+            App.state.activeMarkerDateISO = toMarkerISO(meta.date);
+            rebuildVisibleAdminMarkers();
+            marker = App.state.markerById[markerId];
+            if (!marker) return;
+          }
+
+          const ll = marker.getLatLng();
+          App.map.setView(ll, Math.max(App.map.getZoom(), 10), { animate: true });
+          marker.openPopup();
+        });
+
+        document.getElementById("btn-refresh").addEventListener("click", function () {
+          stopAnimation(document.getElementById("play-btn"));
+          refreshDataAndStayOnLatest();
+          showToast("Данные обновлены", "success");
+        });
+
+        document.getElementById("btn-export").addEventListener("click", function () {
+          try {
+            const bundle = buildDashboardExportBundle();
+            const date = todayISO();
+
+            downloadJSON(bundle, "cvo_dashboard_export_bundle_" + date + ".json");
+            exportDashboardToExcel(bundle, "cvo_dashboard_export_" + date + ".xlsx");
+            exportDashboardToPdf(bundle, "cvo_dashboard_export_" + date + ".pdf");
+
+            showToast("Экспортированы JSON, XLSX и PDF", "success");
+          } catch (error) {
+            console.error("Export error:", error);
+            showToast("Ошибка экспорта: " + (error && error.message ? error.message : "неизвестно"), "info");
+          }
+        });
+
+        document.getElementById("admin-toggle").addEventListener("click", function () {
+          toggleAdminMode();
+        });
+
+        document.getElementById("focus-toggle").addEventListener("click", function () {
+          toggleFocusMode();
+        });
+
+        updateCurrentDateDisplay();
+      }
+
+      document.addEventListener("DOMContentLoaded", function () {
+        initApp().catch(function (err) {
+          console.error("Init error:", err);
+        });
+      });
+
+      window.CVO = {
+        App: App,
+        compareFiles: compareFiles,
+        updateStats: updateStats,
+        updateEventHeatLayer: updateEventHeatLayer,
+        playAnimation: playAnimation,
+        stopAnimation: stopAnimation,
+        toggleTimelinePlayback: toggleTimelinePlayback,
+        calculateRegionalProgress: calculateRegionalProgress,
+        buildDashboardExportData: buildDashboardExportData,
+        buildDashboardReport: buildDashboardReport,
+        buildDashboardExcelProfile: buildDashboardExcelProfile,
+        buildDashboardPdfProfile: buildDashboardPdfProfile,
+        buildDashboardExportBundle: buildDashboardExportBundle,
+        exportDashboardToExcel: exportDashboardToExcel,
+        exportDashboardToPdf: exportDashboardToPdf,
+        buildReport: buildReport,
+        downloadJSON: downloadJSON
+      };
+    </script>
+  </body>
 </html>
